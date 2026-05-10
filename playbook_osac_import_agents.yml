@@ -92,6 +92,7 @@
                 {{ server.disable_bmc_cert_verification
                    | default(import_agents_disable_bmc_cert_verification) }}
             bootMACAddress: "{{ server.boot_mac }}"
+            bootMode: "{{ server.boot_mode | default('UEFI') }}"
             online: true
       loop: "{{ import_agents_servers }}"
       loop_control:
