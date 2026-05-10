@@ -97,6 +97,7 @@
       loop_control:
         loop_var: server
         label: "{{ server.name }}"
+        pause: "{{ import_agents_bmh_creation_delay | default(60) }}"
 
     - name: Compute stale BMH names
       ansible.builtin.set_fact:
