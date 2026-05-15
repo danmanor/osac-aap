@@ -1,6 +1,6 @@
 ---
 # Create MetalLB IPAddressPool and L2Advertisement for PublicIPPool
-# 1. Creates IPAddressPool with autoAssign: false and addresses from CR spec.cidrs
+# 1. Creates IPAddressPool with autoAssign: false, avoidBuggyIPs: true, and addresses from CR spec.cidrs
 # 2. Creates L2Advertisement referencing the IPAddressPool by name
 
 - name: Include get remote cluster kubeconfig
@@ -34,6 +34,7 @@
           osac.io/managed-by: osac-fulfillment
       spec:
         autoAssign: false
+        avoidBuggyIPs: true  # skip .0 and .255
         addresses: "{{ pool_cidrs }}"
   register: ipaddresspool_result
 
