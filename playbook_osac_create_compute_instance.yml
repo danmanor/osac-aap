@@ -75,7 +75,7 @@
         storage_provider_block_encryption_passphrase: "{{ ansible_eda.event.payload.spec.blockEncryptionPassphrase | default('') }}"
         storage_provider_snapshots_enabled: "{{ lookup('env', 'STORAGE_SNAPSHOTS_ENABLED') | default('true', true) | bool }}"
 
-    - name: Add JIT-provisioned StorageClass names to resolution list
+    - name: Add JIT-provisioned StorageClasses to resolution list
       ansible.builtin.set_fact:
         tenant_storage_class_storage_classes: >-
           {{ tenant_storage_class_storage_classes + (storage_provider_storage_class_names | default([])) }}

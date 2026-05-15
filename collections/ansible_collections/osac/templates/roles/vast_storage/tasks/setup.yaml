@@ -68,14 +68,20 @@
   ansible.builtin.set_fact:
     _vast_required_protocols: "{{ _provider_tiers | map(attribute='protocol') | unique | sort | list }}"
 
-- name: Read global storage settings
-  ansible.builtin.set_fact:
-    _vast_snapshots_enabled: "{{ storage_provider_snapshots_enabled | default(true) }}"
-
 - name: Provision VAST resources for tenant
   block:
     - name: Resolve VAST admin credentials from env vars
       ansible.builtin.include_tasks: read_credentials.yaml
+
+    - name: Build VAST VMS connection dict
+      ansible.builtin.set_fact:
+        _vast_vms_conn:
+          host: "{{ vast_endpoint }}"
+          username: "{{ vast_username }}"
+          password: "{{ vast_password }}"
+          validate_certs: "{{ vast_storage_validate_certs }}"
+          timeout: "{{ vast_storage_api_timeout }}"
+      no_log: true
 
     - name: Validate VIP pool IP ranges are configured
       ansible.builtin.fail:
@@ -119,16 +125,6 @@
       ansible.builtin.debug:
         msg: "Shared VIP pool '{{ vast_storage_vip_pool_name }}' ensured (id: {{ _vast_vip_pool_result.vippools.id | default('existing') }})"
 
-    - name: Build VAST VMS connection dict
-      ansible.builtin.set_fact:
-        _vast_vms_conn:
-          host: "{{ vast_endpoint }}"
-          username: "{{ vast_username }}"
-          password: "{{ vast_password }}"
-          validate_certs: "{{ vast_storage_validate_certs }}"
-          timeout: "{{ vast_storage_api_timeout }}"
-      no_log: true
-
     - name: Ensure VAST CSI Operator is installed
       ansible.builtin.include_tasks: ensure_csi_operator.yaml
 
@@ -155,8 +151,16 @@
           ansible.builtin.debug:
             msg: "VAST tenant '{{ tenant_name }}' provisioned with ID: {{ _vast_tenant_result.tenants.id }}"
 
-        - name: Create per-tenant view policy
+        - name: Initialize view policy accumulators
+          ansible.builtin.set_fact:
+            _vast_view_policy_ids: {}
+            _vast_view_policy_names: {}
+
+        - name: Create per-protocol view policy
           ansible.builtin.include_tasks: create_view_policy.yaml
+          loop: "{{ _vast_required_protocols }}"
+          loop_control:
+            loop_var: _vast_vp_protocol
 
         - name: Warn that block encryption requires VAST cluster-side configuration
           ansible.builtin.debug:
@@ -176,7 +180,7 @@
             name: "view-{{ tenant_name }}-{{ item.name }}"
             path: "/osac/{{ tenant_name }}/{{ item.name }}"
             create_dir: true
-            policy_id: "{{ _vast_view_policy_id }}"
+            policy_id: "{{ _vast_view_policy_ids[item.protocol] }}"
             tenant_id: "{{ _vast_tenant_result.tenants.id }}"
             protocols:
               - "{{ item.protocol | upper }}"
@@ -240,7 +244,8 @@
                 tenant_manager_password: "{{ _vast_tenant_manager_password }}"
                 tenant_manager_id: "{{ _vast_tenant_manager_id | default('') | string }}"
                 tenant_role_id: "{{ _vast_tenant_role_id | default('') | string }}"
-                view_policy_name: "{{ _vast_view_policy_name | default('') }}"
+                view_policy_name: "{{ (_vast_view_policy_names.nfs | default(_vast_view_policy_names.values() | list | first)) | default('') }}"
+                view_policy_names: "{{ _vast_view_policy_names | to_json }}"
                 block_encryption_passphrase: "{{ storage_provider_block_encryption_passphrase | default('') }}"
           no_log: true
 
@@ -291,8 +296,11 @@
           no_log: true
           when: _vast_vms_conn is defined
 
-        - name: Rollback - delete per-tenant view policy
+        - name: Rollback - delete per-protocol view policies
           ansible.builtin.include_tasks: delete_view_policy.yaml
+          loop: "{{ _vast_required_protocols | default(['nfs']) }}"
+          loop_control:
+            loop_var: _vast_vp_protocol
           when: _vast_vms_conn is defined
           ignore_errors: true  # noqa: ignore-errors
 
@@ -334,6 +342,9 @@
         _vast_local_provider_id: ""
         _vast_view_policy_name: ""
         _vast_view_policy_id: ""
+        _vast_view_policy_ids: {}
+        _vast_view_policy_names: {}
+        _vast_view_policy_names_raw: ""
       no_log: true
 
 - name: Set storage_provider_tenant_config output fact

@@ -3,19 +3,11 @@
 # Best-effort cleanup — ignore_errors on the outer loop so one provider's
 # failure doesn't block cleanup of other providers.
 
-- name: Extract unique providers from tier list
-  ansible.builtin.set_fact:
-    _unique_providers: "{{ storage_provider_tiers | map(attribute='provider') | unique | sort | list }}"
-
-- name: Set dispatch action for teardown
-  ansible.builtin.set_fact:
-    _dispatch_action: teardown
-
 - name: Dispatch teardown to each provider
   block:
-    - name: Run teardown per provider  # noqa: ignore-errors
+    - name: Run teardown per provider
       ansible.builtin.include_tasks: _dispatch_provider.yaml
       loop: "{{ _unique_providers }}"
       loop_control:
         loop_var: _current_provider
-      ignore_errors: true
+      ignore_errors: true  # noqa: ignore-errors

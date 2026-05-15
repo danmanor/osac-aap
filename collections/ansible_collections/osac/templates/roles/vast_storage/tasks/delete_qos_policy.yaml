@@ -15,6 +15,7 @@
 - name: Filter tiers with qos_policy defined
   ansible.builtin.set_fact:
     _vast_qos_teardown_tiers: "{{ (_vast_teardown_tiers | default(_provider_tiers)) | selectattr('qos_policy', 'defined') | list }}"
+  when: _vast_teardown_tiers is defined
 
 - name: Skip QoS policy deletion when no tiers define qos_policy
   when: _vast_qos_teardown_tiers | length == 0

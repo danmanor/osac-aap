@@ -10,9 +10,9 @@
 #   storage_provider_tiers              — full tier list (filtered here per provider)
 #   storage_provider_provisioning_target — provisioning target enum
 
-- name: "Filter tiers for current provider"
+- name: "Compute filtered tiers for current provider"
   ansible.builtin.set_fact:
-    _provider_tiers: >-
+    _computed_provider_tiers: >-
       {{ (storage_provider_tiers | selectattr('provider', 'equalto', _current_provider) | list)
          | selectattr('name', 'in', _requested_tiers) | list
          if (_requested_tiers is defined and _requested_tiers | length > 0)
@@ -21,7 +21,7 @@
 - name: "Fail if requested tier filter produced no matches"
   when: >-
     _requested_tiers is defined and _requested_tiers | length > 0 and
-    _provider_tiers | length == 0
+    _computed_provider_tiers | length == 0
   ansible.builtin.fail:
     msg: >-
       None of the requested tiers ({{ _requested_tiers | join(', ') }}) match
@@ -33,6 +33,7 @@
     tasks_from: "{{ _dispatch_action }}"
     public: true
   vars:
+    _provider_tiers: "{{ _computed_provider_tiers }}"
     _provisioning_target: "{{ storage_provider_provisioning_target }}"
 
 - name: "Accumulate tenant config after dispatch (setup only)"

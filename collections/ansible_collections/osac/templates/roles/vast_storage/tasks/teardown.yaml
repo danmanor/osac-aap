@@ -147,8 +147,16 @@
         label: "vast-{{ item.protocol }}-{{ tenant_name }}"
       ignore_errors: true  # noqa: ignore-errors
 
-    - name: Delete per-tenant view policy
+    - name: Initialize view policy deletion failure tracker
+      ansible.builtin.set_fact:
+        _vast_view_policy_any_delete_failed: false
+
+    - name: Delete per-protocol view policies
       ansible.builtin.include_tasks: delete_view_policy.yaml
+      loop: "{{ _vast_teardown_tiers | map(attribute='protocol') | unique | list }}"
+      loop_control:
+        loop_var: _vast_vp_protocol
+      ignore_errors: true  # noqa: ignore-errors
 
     - name: Delete per-tenant VMS manager
       ansible.builtin.include_tasks: delete_tenant_manager.yaml
@@ -169,7 +177,7 @@
           {{ not (_vast_teardown_view_results.results | default([]) | selectattr('failed', 'defined') | selectattr('failed') | list | length > 0)
              and not (_vast_teardown_tenant_result.failed | default(false))
              and not (_vast_manager_delete_failed | default(false))
-             and not (_vast_view_policy_delete_failed | default(false))
+             and not (_vast_view_policy_any_delete_failed | default(false))
              and not (_vast_qos_policy_delete_failed | default(false)) }}
 
     - name: Delete tenant config Secret from hub cluster (only when cleanup succeeded)

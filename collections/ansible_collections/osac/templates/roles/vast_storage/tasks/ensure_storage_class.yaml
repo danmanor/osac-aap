@@ -22,8 +22,14 @@
   ansible.builtin.set_fact:
     _vast_required_protocols: "{{ _provider_tiers | map(attribute='protocol') | unique | sort | list }}"
 
-- name: Build expected StorageClass names per tier
+- name: Build expected StorageClass entries per tier
   ansible.builtin.set_fact:
+    _vast_expected_sc_entries: >-
+      {% set entries = [] -%}
+      {% for tier in _provider_tiers -%}
+      {% set _ = entries.append({'name': 'vast-' ~ tier.protocol ~ '-' ~ tenant_name ~ '-' ~ tier.name, 'tier': tier.name}) -%}
+      {% endfor -%}
+      {{ entries }}
     _vast_expected_sc_names: >-
       {% set names = [] -%}
       {% for tier in _provider_tiers -%}
@@ -44,15 +50,16 @@
 - name: Determine if all StorageClasses already exist
   ansible.builtin.set_fact:
     _vast_all_sc_exist: >-
-      {{ (_vast_sc_checks.resources | map(attribute='metadata.name') | sort | list)
-         == (_vast_expected_sc_names | sort | list) }}
+      {{ (_vast_expected_sc_names | difference(
+            _vast_sc_checks.resources | map(attribute='metadata.name') | list
+          ) | length) == 0 }}
 
 - name: Set output facts and skip provisioning when all SCs exist
   when: _vast_all_sc_exist | bool
   block:
     - name: Set StorageClass names output (short-circuit)
       ansible.builtin.set_fact:
-        storage_provider_storage_class_names: "{{ _vast_expected_sc_names }}"
+        storage_provider_storage_class_names: "{{ _vast_expected_sc_entries }}"
 
     - name: Log short-circuit
       ansible.builtin.debug:
@@ -114,7 +121,6 @@
           vipPool: "{{ _vast_tenant_vip_pool }}"
           secretName: "{{ _vast_csi_secret_name }}"
           secretNamespace: "{{ tenant_namespace }}"
-          viewPolicy: "{{ _vast_view_policy_name | default('default') }}"
 
     - name: Add block host encryption parameters when passphrase is available
       ansible.builtin.set_fact:
@@ -131,6 +137,17 @@
     - name: Filter block tiers
       ansible.builtin.set_fact:
         _vast_block_tiers: "{{ _provider_tiers | selectattr('protocol', 'equalto', 'block') | list }}"
+
+    - name: Resolve per-protocol view policy names
+      ansible.builtin.set_fact:
+        _vast_nfs_view_policy: >-
+          {{ (_vast_view_policy_names['nfs'] | default(_vast_view_policy_name))
+             if _vast_view_policy_names is defined
+             else _vast_view_policy_name }}
+        _vast_block_view_policy: >-
+          {{ (_vast_view_policy_names['block'] | default(_vast_view_policy_name))
+             if _vast_view_policy_names is defined
+             else _vast_view_policy_name }}
 
     - name: Create NFS StorageClass per tier
       when: _vast_nfs_tiers | length > 0
@@ -150,6 +167,7 @@
           parameters: >-
             {{ _vast_sc_base_params
                | combine({'storagePath': '/osac/' ~ tenant_name ~ '/' ~ item.name})
+               | combine({'viewPolicy': _vast_nfs_view_policy})
                | combine(({'qosPolicy': item.qos_policy} if item.qos_policy is defined else {})) }}
           reclaimPolicy: Delete
           volumeBindingMode: Immediate
@@ -175,6 +193,7 @@
           parameters: >-
             {{ _vast_sc_base_params
                | combine({'storagePath': '/osac/' ~ tenant_name ~ '/' ~ item.name})
+               | combine({'viewPolicy': _vast_block_view_policy})
                | combine(_vast_sc_block_encryption_params | default({}))
                | combine(({'qosPolicy': item.qos_policy} if item.qos_policy is defined else {})) }}
           reclaimPolicy: Delete
@@ -217,7 +236,7 @@
 
     - name: Set StorageClass names output (list)
       ansible.builtin.set_fact:
-        storage_provider_storage_class_names: "{{ _vast_expected_sc_names }}"
+        storage_provider_storage_class_names: "{{ _vast_expected_sc_entries }}"
 
   always:
     # Clear per-tenant credential facts (admin creds were never loaded)
@@ -231,8 +250,12 @@
         _vast_block_encryption_passphrase: ""
         _vast_csi_secret_data: {}
         _vast_view_policy_name: ""
+        _vast_view_policy_names: {}
+        _vast_view_policy_names_raw: ""
         _vast_tenant_block_encryption_passphrase: ""
         _vast_sc_block_encryption_params: {}
         _vast_nfs_tiers: []
         _vast_block_tiers: []
+        _vast_nfs_view_policy: ""
+        _vast_block_view_policy: ""
       no_log: true

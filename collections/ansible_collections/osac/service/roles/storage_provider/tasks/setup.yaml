@@ -3,17 +3,9 @@
 # Accumulates per-provider tenant configs into a single dict keyed by provider name.
 # Credential clearing happens in the always block.
 
-- name: Extract unique providers from tier list
-  ansible.builtin.set_fact:
-    _unique_providers: "{{ storage_provider_tiers | map(attribute='provider') | unique | sort | list }}"
-
 - name: Initialize tenant config accumulator
   ansible.builtin.set_fact:
     _all_tenant_configs: {}
-
-- name: Set dispatch action for setup
-  ansible.builtin.set_fact:
-    _dispatch_action: setup
 
 - name: Dispatch setup to each provider
   block:

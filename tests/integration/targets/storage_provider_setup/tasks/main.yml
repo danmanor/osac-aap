@@ -240,9 +240,10 @@
       ansible.builtin.assert:
         that:
           - _hub_secret.resources[0].data.view_policy_name is defined
-          - (_hub_secret.resources[0].data.view_policy_name | b64decode) == "osac-test-setup"
+          - (_hub_secret.resources[0].data.view_policy_name | b64decode) == "osac-test-setup-nfs"
+          - _hub_secret.resources[0].data.view_policy_names is defined
         fail_msg: "Hub Secret missing or incorrect view_policy_name"
-        success_msg: "Hub Secret view_policy_name correct"
+        success_msg: "Hub Secret view_policy_name and view_policy_names correct"
 
     - name: Assert QoS policy was created
       ansible.builtin.assert:

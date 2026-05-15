@@ -178,6 +178,7 @@ tests/integration/kubeconfig-*
 tests/integration/integration_config.yml
 tests/integration/.mock_vms_pid
 tests/integration/.storage_env
+tests/vast_vms_smoke_test.yml
 
 # CLAUDE.md
 CLAUDE.md

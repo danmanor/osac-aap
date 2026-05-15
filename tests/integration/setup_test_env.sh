@@ -120,12 +120,19 @@ if [ "${STORAGE_TESTS_ENABLED:-}" = "true" ]; then
   echo "Applying storage test fixtures..."
   kubectl apply -f "${SCRIPT_DIR}/fixtures/storage/" || true
 
-  echo "Creating fake VAST CSIDriver (short-circuits OLM installation in tests)..."
+  echo "Creating fake VAST CSIDrivers (short-circuits OLM installation in tests)..."
   kubectl apply -f - <<CSIEOF
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
   name: vastcsi-driver-nfs
+spec:
+  attachRequired: false
+---
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: vastcsi-driver-block
 spec:
   attachRequired: false
 CSIEOF

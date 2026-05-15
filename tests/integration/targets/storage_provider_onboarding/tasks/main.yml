@@ -164,6 +164,15 @@
         success_msg: "CSI Secret uses manager credentials from hub Secret (credential handoff validated)"
       no_log: true
 
+    - name: Assert CSI Secret does NOT contain admin credentials
+      ansible.builtin.assert:
+        that:
+          - (_csi_secret.resources[0].data.username | b64decode) != 'admin'
+          - (_csi_secret.resources[0].data.password | b64decode) != 'admin'
+        fail_msg: "CSI Secret contains admin credentials — security boundary violated"
+        success_msg: "CSI Secret confirmed free of admin credentials"
+      no_log: true
+
     - name: Assert StorageClass labels
       ansible.builtin.assert:
         that:

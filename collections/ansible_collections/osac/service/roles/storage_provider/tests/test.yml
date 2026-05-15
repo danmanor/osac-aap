@@ -154,18 +154,19 @@
             msg: "Role did not fail as expected when protocol is invalid"
 
       rescue:
-        - name: Verify role failed with expected invalid-protocol message
+        - name: Verify role failed for invalid protocol
           ansible.builtin.assert:
             that:
               - >-
-                'Invalid protocol' in (ansible_failed_result.results | default([]) | map(attribute='msg') | join(' '))
+                'unsupported protocol' in (ansible_failed_result.results | default([]) | map(attribute='msg') | join(' ') | lower)
+                or 'Invalid protocol' in (ansible_failed_result.results | default([]) | map(attribute='msg') | join(' '))
                 or 'One or more items failed' in (ansible_failed_result.msg | default(''))
             fail_msg: "Role failed but with unexpected message: {{ ansible_failed_result.msg | default('unknown') }}"
-            success_msg: "Role correctly rejected invalid input"
+            success_msg: "Role correctly rejected invalid protocol"
 
 # ──────────────────────────────────────────────────────────────
 # Test 5: Invalid provider -- error path
-# Expected: role fails with provider not in allowed list message
+# Expected: role fails at dispatch (provider role does not exist)
 # ──────────────────────────────────────────────────────────────
 - name: Test storage_provider -- invalid provider (should fail)
   hosts: localhost
@@ -191,14 +192,15 @@
             msg: "Role did not fail as expected when provider is invalid"
 
       rescue:
-        - name: Verify role failed with expected invalid-provider message
+        - name: Verify role failed for invalid provider
           ansible.builtin.assert:
             that:
               - >-
-                'Invalid provider' in (ansible_failed_result.results | default([]) | map(attribute='msg') | join(' '))
+                'osac.templates.netapp_storage' in (ansible_failed_result.msg | default(''))
+                or 'was not found' in (ansible_failed_result.msg | default(''))
                 or 'One or more items failed' in (ansible_failed_result.msg | default(''))
             fail_msg: "Role failed but with unexpected message: {{ ansible_failed_result.msg | default('unknown') }}"
-            success_msg: "Role correctly rejected invalid input"
+            success_msg: "Role correctly rejected invalid provider"
 
 # ──────────────────────────────────────────────────────────────
 # Test 6: Invalid action -- error path

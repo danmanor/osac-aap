@@ -4,7 +4,6 @@
   gather_facts: false
 
   vars:
-    tenant: "{{ ansible_eda.event.payload }}"
     tenant_name: "{{ ansible_eda.event.payload.metadata.name }}"
     tenant_namespace: "{{ ansible_eda.event.payload.metadata.namespace }}"
     _storage_tiers_raw: "{{ lookup('env', 'STORAGE_TIERS') }}"
