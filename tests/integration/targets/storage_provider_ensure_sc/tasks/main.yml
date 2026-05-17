@@ -138,18 +138,18 @@
     - name: Assert StorageClass provisioner
       ansible.builtin.assert:
         that:
-          - _sc_result.resources[0].provisioner == "vastcsi-driver-nfs"
-        fail_msg: "Expected provisioner 'vastcsi-driver-nfs', got '{{ _sc_result.resources[0].provisioner }}'"
+          - _sc_result.resources[0].provisioner == "csi.vastdata.com"
+        fail_msg: "Expected provisioner 'csi.vastdata.com', got '{{ _sc_result.resources[0].provisioner }}'"
         success_msg: "StorageClass provisioner correct"
 
     - name: Assert StorageClass parameters
       ansible.builtin.assert:
         that:
-          - _sc_result.resources[0].parameters.vipPool == "osac-test-pool"
-          - _sc_result.resources[0].parameters.storagePath == "/osac/test-ensuresc/default"
-          - _sc_result.resources[0].parameters.secretName == "vast-csi-test-ensuresc"
-          - _sc_result.resources[0].parameters.secretNamespace == "osac-system"
-          - _sc_result.resources[0].parameters.viewPolicy == "osac-test-ensuresc-nfs"
+          - _sc_result.resources[0].parameters.vip_pool_name == "osac-test-pool"
+          - _sc_result.resources[0].parameters.root_export == "/osac/test-ensuresc/default"
+          - "_sc_result.resources[0].parameters['csi.storage.k8s.io/provisioner-secret-name'] == 'vast-csi-test-ensuresc'"
+          - "_sc_result.resources[0].parameters['csi.storage.k8s.io/provisioner-secret-namespace'] == 'osac-system'"
+          - _sc_result.resources[0].parameters.view_policy == "osac-test-ensuresc-nfs"
         fail_msg: "StorageClass parameters incorrect: {{ _sc_result.resources[0].parameters }}"
         success_msg: "StorageClass parameters correct"
 
@@ -197,8 +197,8 @@
     - name: Assert block StorageClass provisioner
       ansible.builtin.assert:
         that:
-          - _block_sc_result.resources[0].provisioner == "vastcsi-driver-block"
-        fail_msg: "Expected provisioner 'vastcsi-driver-block', got '{{ _block_sc_result.resources[0].provisioner }}'"
+          - _block_sc_result.resources[0].provisioner == "block.csi.vastdata.com"
+        fail_msg: "Expected provisioner 'block.csi.vastdata.com', got '{{ _block_sc_result.resources[0].provisioner }}'"
         success_msg: "Block StorageClass provisioner correct"
 
     - name: Assert block StorageClass uses WaitForFirstConsumer binding mode
@@ -208,22 +208,23 @@
         fail_msg: "Block StorageClass should use WaitForFirstConsumer, got '{{ _block_sc_result.resources[0].volumeBindingMode }}'"
         success_msg: "Block StorageClass volumeBindingMode correct"
 
-    - name: Assert block StorageClass has hostEncryption parameter when passphrase provided
+    - name: Assert block StorageClass has host_encryption parameter when passphrase provided
       ansible.builtin.assert:
         that:
-          - _block_sc_result.resources[0].parameters.hostEncryption is defined
-          - _block_sc_result.resources[0].parameters.hostEncryption == "true"
-        fail_msg: "Block StorageClass should have hostEncryption: 'true' when passphrase is provided"
-        success_msg: "Block StorageClass hostEncryption parameter correct"
+          - _block_sc_result.resources[0].parameters.host_encryption is defined
+        fail_msg: "Block StorageClass should have host_encryption when passphrase is provided"
+        success_msg: "Block StorageClass host_encryption parameter correct"
 
     - name: Assert block StorageClass parameters
       ansible.builtin.assert:
         that:
-          - _block_sc_result.resources[0].parameters.vipPool == "osac-test-pool"
-          - _block_sc_result.resources[0].parameters.storagePath == "/osac/test-ensuresc/block-tier"
-          - _block_sc_result.resources[0].parameters.secretName == "vast-csi-test-ensuresc"
-          - _block_sc_result.resources[0].parameters.secretNamespace == "osac-system"
-          - _block_sc_result.resources[0].parameters.viewPolicy == "osac-test-ensuresc-block"
+          - _block_sc_result.resources[0].parameters.vip_pool_name == "osac-test-pool"
+          - _block_sc_result.resources[0].parameters.subsystem == "view-test-ensuresc-block-tier"
+          - "_block_sc_result.resources[0].parameters['csi.storage.k8s.io/provisioner-secret-name'] == 'vast-csi-test-ensuresc'"
+          - "_block_sc_result.resources[0].parameters['csi.storage.k8s.io/provisioner-secret-namespace'] == 'osac-system'"
+          - _block_sc_result.resources[0].parameters.storagePath is not defined
+          - _block_sc_result.resources[0].parameters.viewPolicy is not defined
+          - _block_sc_result.resources[0].parameters.secretName is not defined
         fail_msg: "Block StorageClass parameters incorrect: {{ _block_sc_result.resources[0].parameters }}"
         success_msg: "Block StorageClass parameters correct"
 
@@ -260,8 +261,9 @@
           - (_csi_secret.resources[0].data.password | b64decode) == "test-csi-password"
           - _csi_secret.resources[0].data.endpoint is defined
           - (_csi_secret.resources[0].data.endpoint | b64decode) == "127.0.0.1:18443"
+          - _csi_secret.resources[0].data.tenant is not defined
         fail_msg: "CSI Secret does not contain expected manager credentials"
-        success_msg: "CSI Secret contains tenant manager credentials (not admin creds)"
+        success_msg: "CSI Secret contains tenant manager credentials (tenant field omitted)"
 
     - name: Assert CSI Secret labels
       ansible.builtin.assert:
@@ -299,10 +301,10 @@
       when: _vsc_crd_check.resources | length > 0
       ansible.builtin.assert:
         that:
-          - _vsc_result.resources[0].driver == "vastcsi-driver-nfs"
+          - _vsc_result.resources[0].driver == "csi.vastdata.com"
           - _vsc_result.resources[0].deletionPolicy == "Delete"
-          - _vsc_result.resources[0].parameters.secretName == "vast-csi-test-ensuresc"
-          - _vsc_result.resources[0].parameters.secretNamespace == "osac-system"
+          - "_vsc_result.resources[0].parameters['csi.storage.k8s.io/snapshotter-secret-name'] == 'vast-csi-test-ensuresc'"
+          - "_vsc_result.resources[0].parameters['csi.storage.k8s.io/snapshotter-secret-namespace'] == 'osac-system'"
         fail_msg: "VolumeSnapshotClass properties incorrect"
         success_msg: "VolumeSnapshotClass properties correct"
 
@@ -322,8 +324,7 @@
         that:
           - storage_provider_storage_class_names is defined
           - storage_provider_storage_class_names is iterable
-          - "'vast-nfs-test-ensuresc-default' in storage_provider_storage_class_names"
-          - "'vast-block-test-ensuresc-block-tier' in storage_provider_storage_class_names"
+          - "storage_provider_storage_class_names | map(attribute='name') | list is superset(['vast-nfs-test-ensuresc-default', 'vast-block-test-ensuresc-block-tier'])"
         fail_msg: "storage_provider_storage_class_names not set correctly: {{ storage_provider_storage_class_names | default('undefined') }}"
         success_msg: "storage_provider_storage_class_names output correct"
 
@@ -362,8 +363,7 @@
       ansible.builtin.assert:
         that:
           - storage_provider_storage_class_names is defined
-          - "'vast-nfs-test-ensuresc-default' in storage_provider_storage_class_names"
-          - "'vast-block-test-ensuresc-block-tier' in storage_provider_storage_class_names"
+          - "storage_provider_storage_class_names | map(attribute='name') | list is superset(['vast-nfs-test-ensuresc-default', 'vast-block-test-ensuresc-block-tier'])"
         fail_msg: "Short-circuit did not set output facts"
         success_msg: "Short-circuit: output facts preserved"
 

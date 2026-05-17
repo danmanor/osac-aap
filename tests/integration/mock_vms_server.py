@@ -22,6 +22,7 @@ from socketserver import ThreadingMixIn
 from urllib.parse import parse_qs, urlparse
 
 CALL_LOG = []
+_INJECTED_FAILURES = []
 
 _NEXT_ID = {r: 1 for r in (
     "tenants", "vippools", "views", "viewpolicies", "quotas", "qospolicies",
@@ -44,18 +45,19 @@ CANNED_DEFAULTS = {
     "localproviders": {"name": "", "managed_by": [], "description": ""},
 }
 
-# Query parameter used to filter list responses for each resource.
-_LIST_FILTER_FIELD = {
-    "tenants": "name",
-    "vippools": "name",
-    "views": "path",
-    "quotas": "path",
-    "roles": "name",
-    "managers": "username",
-    "apitokens": "owner",
-    "viewpolicies": "name",
-    "qospolicies": "name",
-    "localproviders": "name",
+# Query parameters supported for filtering list responses.
+# Each resource maps to a list of field names that can be used as query params.
+_LIST_FILTER_FIELDS = {
+    "tenants": ["name"],
+    "vippools": ["name"],
+    "views": ["path", "tenant_id"],
+    "quotas": ["path", "tenant_id"],
+    "roles": ["name", "tenant_id"],
+    "managers": ["username"],
+    "apitokens": ["owner"],
+    "viewpolicies": ["name", "tenant_id"],
+    "qospolicies": ["name", "tenant_id"],
+    "localproviders": ["name"],
 }
 
 _RESOURCES = set(CANNED_DEFAULTS)
@@ -78,6 +80,18 @@ def _log(entry):
 
 
 class MockVmsHandler(BaseHTTPRequestHandler):
+    def _check_injected_failure(self, method):
+        """Check if an injected failure matches this request. Returns (status, body) or None."""
+        resource, _ = self._parse_path()
+        with _LOCK:
+            for i, f in enumerate(_INJECTED_FAILURES):
+                if f["resource"] == resource and f["method"] == method:
+                    status = f.get("status", 500)
+                    body = f.get("body", {"error": "injected failure"})
+                    _INJECTED_FAILURES.pop(i)
+                    return status, body
+        return None
+
     def _parse_path(self):
         """Return (resource, resource_id) or (None, None) for non-resource paths."""
         path = self.path.split("?")[0].rstrip("/")
@@ -140,7 +154,7 @@ class MockVmsHandler(BaseHTTPRequestHandler):
             return
 
         resource, resource_id = self._parse_path()
-        _log({"method": "GET", "path": path, "headers": _strip_sensitive(dict(self.headers))})
+        _log({"method": "GET", "path": self.path, "headers": _strip_sensitive(dict(self.headers))})
 
         if resource is None:
             self._respond(404, {"error": "not found"})
@@ -152,13 +166,14 @@ class MockVmsHandler(BaseHTTPRequestHandler):
             else:
                 obj = list(_STORE[resource].values())
 
-                # Apply query-parameter filtering for resources that support it
-                filter_field = _LIST_FILTER_FIELD.get(resource)
-                if filter_field:
+                # Apply query-parameter filtering (supports multiple fields)
+                filter_fields = _LIST_FILTER_FIELDS.get(resource, [])
+                if filter_fields:
                     qs = parse_qs(urlparse(self.path).query)
-                    filter_value = qs.get(filter_field, [None])[0]
-                    if filter_value is not None:
-                        obj = [o for o in obj if o.get(filter_field) == filter_value]
+                    for field in filter_fields:
+                        filter_value = qs.get(field, [None])[0]
+                        if filter_value is not None:
+                            obj = [o for o in obj if str(o.get(field, "")) == filter_value]
 
         if resource_id is not None:
             if obj is None:
@@ -174,11 +189,22 @@ class MockVmsHandler(BaseHTTPRequestHandler):
         if path == "/_reset":
             with _LOCK:
                 CALL_LOG.clear()
+                _INJECTED_FAILURES.clear()
                 for r in _STORE:
                     _STORE[r].clear()
                 for r in _NEXT_ID:
                     _NEXT_ID[r] = 1
             self._respond(200, {"status": "reset"})
+            return
+
+        if path == "/_inject_failure":
+            body = self._read_body()
+            if not body or "resource" not in body or "method" not in body:
+                self._respond(400, {"error": "resource and method required"})
+                return
+            with _LOCK:
+                _INJECTED_FAILURES.append(body)
+            self._respond(200, {"status": "failure injected", "pending": len(_INJECTED_FAILURES)})
             return
 
         body = self._read_body()
@@ -190,6 +216,11 @@ class MockVmsHandler(BaseHTTPRequestHandler):
         # Special endpoint: /api/token/ — authentication (no resource CRUD)
         if path.rstrip("/") == "/api/token":
             self._respond(200, {"access": "mock-bearer-token-XXXXXX"})
+            return
+
+        failure = self._check_injected_failure("POST")
+        if failure:
+            self._respond(failure[0], failure[1])
             return
 
         resource, _ = self._parse_path()

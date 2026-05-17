@@ -1,7 +1,6 @@
 ---
 # Dispatches ensure_storage_class to each unique provider in the tier list.
 # Accumulates StorageClass names across all providers into a single list.
-# Sets backward-compat singular storage_provider_storage_class_name from the first SC.
 
 - name: Initialize StorageClass name accumulator
   ansible.builtin.set_fact:
@@ -18,8 +17,3 @@
     - name: Set StorageClass names output (list)
       ansible.builtin.set_fact:
         storage_provider_storage_class_names: "{{ _all_sc_names }}"
-
-    - name: Set backward-compat singular StorageClass name
-      ansible.builtin.set_fact:
-        storage_provider_storage_class_name: "{{ (_all_sc_names | first).name if (_all_sc_names | first) is mapping else (_all_sc_names | first) }}"
-      when: _all_sc_names | length > 0

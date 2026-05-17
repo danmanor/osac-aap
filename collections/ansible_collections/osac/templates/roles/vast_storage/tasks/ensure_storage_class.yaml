@@ -84,13 +84,19 @@
         _vast_block_encryption_passphrase: "{{ storage_provider_block_encryption_passphrase | default(_vast_tenant_block_encryption_passphrase | default('')) }}"
       no_log: true
 
-    # CSI Secret uses per-tenant Manager username/password — NEVER admin creds
+    # CSI Secret uses per-tenant Manager username/password — NEVER admin creds.
+    # The 'tenant' field is intentionally OMITTED. Including it causes the CSI
+    # driver to set X-Tenant-Name on the /api/v1/token/ login call, which
+    # tenant-scopes the JWT and blocks GET /api/v1/versions/ — a prerequisite
+    # check the driver makes before every storage operation. Tenant scoping is
+    # handled by the tenant_name StorageClass parameter and the role permissions.
     - name: Build CSI Secret data
       ansible.builtin.set_fact:
         _vast_csi_secret_data:
           username: "{{ _vast_tenant_csi_username }}"
           password: "{{ _vast_tenant_csi_password }}"
           endpoint: "{{ _vast_tenant_endpoint }}"
+          # tenant: "{{ tenant_name }}"
       no_log: true
 
     - name: Add passphrase to CSI Secret data for block encryption
@@ -115,17 +121,33 @@
           stringData: "{{ _vast_csi_secret_data }}"
       no_log: true
 
-    - name: Build base StorageClass parameters
+    - name: Build CSI secret references (single source for all SC and VSC parameters)
+      ansible.builtin.set_fact:
+        _vast_csi_secret_ref:
+          name: "{{ _vast_csi_secret_name }}"
+          namespace: "{{ tenant_namespace }}"
+
+    - name: Build base StorageClass parameters (shared by NFS and block)
       ansible.builtin.set_fact:
         _vast_sc_base_params:
-          vipPool: "{{ _vast_tenant_vip_pool }}"
-          secretName: "{{ _vast_csi_secret_name }}"
-          secretNamespace: "{{ tenant_namespace }}"
+          vip_pool_name: "{{ _vast_tenant_vip_pool }}"
+          csi.storage.k8s.io/provisioner-secret-name: "{{ _vast_csi_secret_ref.name }}"
+          csi.storage.k8s.io/provisioner-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
+          csi.storage.k8s.io/controller-publish-secret-name: "{{ _vast_csi_secret_ref.name }}"
+          csi.storage.k8s.io/controller-publish-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
+          csi.storage.k8s.io/node-publish-secret-name: "{{ _vast_csi_secret_ref.name }}"
+          csi.storage.k8s.io/node-publish-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
+          csi.storage.k8s.io/controller-expand-secret-name: "{{ _vast_csi_secret_ref.name }}"
+          csi.storage.k8s.io/controller-expand-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
+          csi.storage.k8s.io/node-expand-secret-name: "{{ _vast_csi_secret_ref.name }}"
+          csi.storage.k8s.io/node-expand-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
 
-    - name: Add block host encryption parameters when passphrase is available
+    - name: Build block host encryption JSON when passphrase is available
       ansible.builtin.set_fact:
         _vast_sc_block_encryption_params:
-          hostEncryption: "true"
+          host_encryption: >-
+            {{ {'cipher': 'aes-xts-plain64', 'key_size': '512',
+                'hash': 'sha256', 'pbkdf_memory': '65536'} | to_json }}
       when:
         - _vast_block_encryption_passphrase | default('') | length > 0
         - _vast_required_protocols | intersect(['block']) | length > 0
@@ -166,9 +188,9 @@
           provisioner: "{{ vast_storage_csi_provisioner_map[item.protocol] }}"
           parameters: >-
             {{ _vast_sc_base_params
-               | combine({'storagePath': '/osac/' ~ tenant_name ~ '/' ~ item.name})
-               | combine({'viewPolicy': _vast_nfs_view_policy})
-               | combine(({'qosPolicy': item.qos_policy} if item.qos_policy is defined else {})) }}
+               | combine({'root_export': '/osac/' ~ tenant_name ~ '/' ~ item.name})
+               | combine({'view_policy': _vast_nfs_view_policy})
+               | combine(({'qos_policy': item.qos_policy} if item.qos_policy is defined else {})) }}
           reclaimPolicy: Delete
           volumeBindingMode: Immediate
       loop: "{{ _vast_nfs_tiers }}"
@@ -192,10 +214,12 @@
           provisioner: "{{ vast_storage_csi_provisioner_map[item.protocol] }}"
           parameters: >-
             {{ _vast_sc_base_params
-               | combine({'storagePath': '/osac/' ~ tenant_name ~ '/' ~ item.name})
-               | combine({'viewPolicy': _vast_block_view_policy})
+               | combine({'subsystem': 'view-' ~ tenant_name ~ '-' ~ item.name,
+                          'tenant_name': tenant_name})
+               | combine({'csi.storage.k8s.io/node-stage-secret-name': _vast_csi_secret_ref.name})
+               | combine({'csi.storage.k8s.io/node-stage-secret-namespace': _vast_csi_secret_ref.namespace})
                | combine(_vast_sc_block_encryption_params | default({}))
-               | combine(({'qosPolicy': item.qos_policy} if item.qos_policy is defined else {})) }}
+               | combine(({'qos_policy': item.qos_policy} if item.qos_policy is defined else {})) }}
           reclaimPolicy: Delete
           volumeBindingMode: WaitForFirstConsumer
       loop: "{{ _vast_block_tiers }}"
@@ -228,8 +252,8 @@
           driver: "{{ vast_storage_csi_provisioner_map[item.protocol] }}"
           deletionPolicy: Delete
           parameters:
-            secretName: "{{ _vast_csi_secret_name }}"
-            secretNamespace: "{{ tenant_namespace }}"
+            csi.storage.k8s.io/snapshotter-secret-name: "{{ _vast_csi_secret_ref.name }}"
+            csi.storage.k8s.io/snapshotter-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
       loop: "{{ _provider_tiers }}"
       loop_control:
         label: "vast-snapshot-{{ tenant_name }}-{{ item.name }}"
@@ -249,6 +273,7 @@
         _vast_tenant_config_secret: {}
         _vast_block_encryption_passphrase: ""
         _vast_csi_secret_data: {}
+        _vast_csi_secret_ref: {}
         _vast_view_policy_name: ""
         _vast_view_policy_names: {}
         _vast_view_policy_names_raw: ""

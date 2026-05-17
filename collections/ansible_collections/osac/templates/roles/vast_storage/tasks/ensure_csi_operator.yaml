@@ -5,7 +5,7 @@
 #
 # Requires:
 #   _vast_required_protocols      — list of unique protocols from caller (e.g. ['nfs', 'block'])
-#   vast_storage_csi_provisioner_map — from defaults ({nfs: vastcsi-driver-nfs, block: vastcsi-driver-block})
+#   vast_storage_csi_provisioner_map — from defaults ({nfs: csi.vastdata.com, block: block.csi.vastdata.com})
 #   vast_storage_csi_operator_*   — from defaults (OLM config)
 
 - name: Build list of expected CSI provisioner names from required protocols
@@ -122,7 +122,7 @@
           apiVersion: storage.vastdata.com/v1
           kind: VastCSIDriver
           metadata:
-            name: "{{ vast_storage_csi_driver_name }}-{{ item }}"
+            name: "{{ vast_storage_csi_provisioner_map[item] }}"
             namespace: "{{ vast_storage_csi_operator_namespace }}"
           spec:
             driverType: "{{ item }}"

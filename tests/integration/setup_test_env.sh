@@ -125,16 +125,16 @@ if [ "${STORAGE_TESTS_ENABLED:-}" = "true" ]; then
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
-  name: vastcsi-driver-nfs
+  name: csi.vastdata.com
 spec:
   attachRequired: false
 ---
 apiVersion: storage.k8s.io/v1
 kind: CSIDriver
 metadata:
-  name: vastcsi-driver-block
+  name: block.csi.vastdata.com
 spec:
-  attachRequired: false
+  attachRequired: true
 CSIEOF
 
   # Generate self-signed TLS cert for mock VMS server

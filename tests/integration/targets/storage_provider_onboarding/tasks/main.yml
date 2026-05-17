@@ -130,10 +130,10 @@
     - name: Assert StorageClass parameters
       ansible.builtin.assert:
         that:
-          - _sc_result.resources[0].parameters.vipPool == "osac-test-pool"
-          - _sc_result.resources[0].parameters.storagePath == "/osac/test-onboard/default"
-          - _sc_result.resources[0].parameters.secretName == "vast-csi-test-onboard"
-          - _sc_result.resources[0].parameters.secretNamespace == "osac-system"
+          - _sc_result.resources[0].parameters.vip_pool_name == "osac-test-pool"
+          - _sc_result.resources[0].parameters.root_export == "/osac/test-onboard/default"
+          - "_sc_result.resources[0].parameters['csi.storage.k8s.io/provisioner-secret-name'] == 'vast-csi-test-onboard'"
+          - "_sc_result.resources[0].parameters['csi.storage.k8s.io/provisioner-secret-namespace'] == 'osac-system'"
         fail_msg: "StorageClass parameters incorrect: {{ _sc_result.resources[0].parameters }}"
         success_msg: "StorageClass parameters correct"
 
