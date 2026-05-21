@@ -1,0 +1,20 @@
+---
+- name: Configure a HostLease resource
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    host_lease: "{{ ansible_eda.event.payload }}"
+
+  pre_tasks:
+    - name: Display host lease information
+      ansible.builtin.debug:
+        msg:
+          - "Host: {{ host_lease.metadata.name }} ({{ host_lease.metadata.namespace }})"
+          - "External Host ID: {{ host_lease.spec.externalHostID }}"
+
+  tasks:
+    - name: Call the selected host lease template
+      ansible.builtin.include_role:
+        name: "osac.templates.{{ host_lease.spec.templateID }}"
+        tasks_from: create
