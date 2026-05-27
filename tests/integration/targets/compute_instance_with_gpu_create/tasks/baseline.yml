@@ -16,6 +16,7 @@
           event:
             payload: "{{ test_compute_instance }}"
         tenant_target_namespace: "computeinstance-test-vm-gpu-work"
+        tenant_storage_class_name: "test-storage-class"
         create_step_resources_override:
           name: osac.workflows.workflow_helpers
           tasks_from: noop.yml

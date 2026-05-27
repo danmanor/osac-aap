@@ -61,3 +61,5 @@ jobs:
 
       - name: Run integration tests
         run: uv run make test
+        env:
+          STORAGE_TESTS_ENABLED: "true"

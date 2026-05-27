@@ -8,19 +8,19 @@ echo "=== Setting up test environment ==="
 
 # 0. Delete existing cluster if it exists
 echo "Cleaning up any existing test cluster..."
-KIND_EXPERIMENTAL_PROVIDER=podman kind delete cluster --name osac-test 2>/dev/null || true
+kind delete cluster --name osac-test 2>/dev/null || true
 
 # 0.5. Install required Python libraries
 echo "Installing required Python libraries..."
-pip install --user kubernetes openstacksdk 2>/dev/null || pip3 install --user kubernetes openstacksdk
+pip install kubernetes openstacksdk 2>/dev/null || uv pip install kubernetes openstacksdk 2>/dev/null || uv pip install --system kubernetes openstacksdk
 
 # 1. Create kind cluster
 echo "Creating kind cluster..."
-KIND_EXPERIMENTAL_PROVIDER=podman kind create cluster --name osac-test --wait 5m
+kind create cluster --name osac-test --wait 5m
 
 # 1.5. Export kubeconfig to dedicated file
 echo "Exporting kubeconfig to dedicated file..."
-KIND_EXPERIMENTAL_PROVIDER=podman kind export kubeconfig --name osac-test --kubeconfig "${SCRIPT_DIR}/kubeconfig-osac-test"
+kind export kubeconfig --name osac-test --kubeconfig "${SCRIPT_DIR}/kubeconfig-osac-test"
 echo "Kubeconfig exported to: ${SCRIPT_DIR}/kubeconfig-osac-test"
 
 # 2. Clone osac-operator for CRDs
@@ -109,5 +109,72 @@ echo "Applying test fixtures..."
 kubectl apply -f "${SCRIPT_DIR}/fixtures/clusterorder-test.yaml"
 kubectl apply -f "${SCRIPT_DIR}/fixtures/computeinstance-test.yaml"
 kubectl apply -f "${SCRIPT_DIR}/fixtures/computeinstance-with-gpu-test.yaml"
+
+# 6. Apply storage test fixtures and CRDs (conditional)
+if [ "${STORAGE_TESTS_ENABLED:-}" = "true" ]; then
+  echo "Installing VolumeSnapshot CRDs for storage tests..."
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.5.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotclasses.yaml 2>/dev/null || echo "VolumeSnapshotClass CRD may already exist"
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.5.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshots.yaml 2>/dev/null || echo "VolumeSnapshot CRD may already exist"
+  kubectl apply -f https://raw.githubusercontent.com/kubernetes-csi/external-snapshotter/v8.5.0/client/config/crd/snapshot.storage.k8s.io_volumesnapshotcontents.yaml 2>/dev/null || echo "VolumeSnapshotContent CRD may already exist"
+
+  echo "Applying storage test fixtures..."
+  kubectl apply -f "${SCRIPT_DIR}/fixtures/storage/" || true
+
+  echo "Creating fake VAST CSIDrivers (short-circuits OLM installation in tests)..."
+  kubectl apply -f - <<CSIEOF
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: csi.vastdata.com
+spec:
+  attachRequired: false
+---
+apiVersion: storage.k8s.io/v1
+kind: CSIDriver
+metadata:
+  name: block.csi.vastdata.com
+spec:
+  attachRequired: true
+CSIEOF
+
+  # Generate self-signed TLS cert for mock VMS server
+  echo "Generating TLS certificate for mock VMS server..."
+  mkdir -p "${SCRIPT_DIR}/certs"
+  openssl req -x509 -newkey rsa:2048 \
+    -keyout "${SCRIPT_DIR}/certs/mock.key" \
+    -out "${SCRIPT_DIR}/certs/mock.pem" \
+    -days 1 -nodes -subj "/CN=127.0.0.1" 2>/dev/null
+
+  # Start mock VMS server for storage integration tests (TLS required by vastdata.vms modules)
+  echo "Starting mock VMS server (TLS)..."
+  python3 "${SCRIPT_DIR}/mock_vms_server.py" 18443 \
+    --tls --cert "${SCRIPT_DIR}/certs/mock.pem" --key "${SCRIPT_DIR}/certs/mock.key" &
+  MOCK_VMS_PID=$!
+  echo "${MOCK_VMS_PID}" > "${SCRIPT_DIR}/.mock_vms_pid"
+
+  # Wait for mock server to be ready
+  for i in $(seq 1 10); do
+    if curl -sk https://127.0.0.1:18443/api > /dev/null 2>&1; then
+      echo "Mock VMS server ready on port 18443 (PID: ${MOCK_VMS_PID})"
+      break
+    fi
+    sleep 1
+  done
+
+  # Create storage test namespace and ConfigMap
+  kubectl create namespace test-tenant-ns || true
+
+  # Write VAST env vars to file for run_tests.sh (Make runs each recipe line in a separate shell)
+  cat > "${SCRIPT_DIR}/.storage_env" <<'ENVEOF'
+export VAST_ENDPOINT="127.0.0.1:18443"
+export VAST_USERNAME="admin"
+export VAST_PASSWORD="admin"
+export VAST_VIP_POOL_NAME="osac-test-pool"
+export VAST_VIP_POOL_IP_RANGES='[["10.0.0.10","10.0.0.50"]]'
+export VAST_VIP_POOL_SUBNET_CIDR="24"
+export VAST_VALIDATE_CERTS="false"
+export STORAGE_TIERS='[{"name":"default","protocol":"nfs","provider":"vast","qos_policy":"test-qos","qos_limits":{"static_limits":{"max_reads_bw_mbps":100,"max_writes_bw_mbps":100}}}]'
+ENVEOF
+fi
 
 echo "=== Test environment ready ==="

@@ -150,6 +150,47 @@ done
 # Clean up lease test pod
 kubectl delete pod lease-test-pod -n osac-system --ignore-not-found 2>/dev/null || true
 
+# Storage provider tests (conditional)
+if [ "${STORAGE_TESTS_ENABLED:-}" = "true" ]; then
+  # Source env vars written by setup_test_env.sh (Make runs each recipe line in a separate shell)
+  if [ -f "${SCRIPT_DIR}/.storage_env" ]; then
+    # shellcheck source=/dev/null
+    . "${SCRIPT_DIR}/.storage_env"
+  fi
+  echo "=== Running Storage Provider Tests ==="
+  echo ""
+
+  # Reset mock server once before parallel tests (individual tests no longer reset)
+  curl -sk -X POST https://127.0.0.1:18443/_reset > /dev/null 2>&1 || true
+
+  # Storage tests share a mock VMS server with a global call log and object
+  # store. Tests that assert on the call log or pre-seed VMS resources cannot
+  # run in parallel without cross-contamination. Run all sequentially — each
+  # test takes ~7s so the total overhead is negligible.
+  STORAGE_TESTS=(
+    "storage_provider_setup"
+    "storage_provider_teardown"
+    "storage_provider_ensure_sc"
+    "storage_provider_onboarding"
+    "storage_provider_setup_rollback"
+  )
+
+  for storage_test in "${STORAGE_TESTS[@]}"; do
+    echo "  Running: $storage_test"
+    log_file="/tmp/osac_storage_test_${storage_test}.log"
+    if ansible-playbook "targets/${storage_test}/tasks/main.yml" -e "@common_vars.yml" -v > "${log_file}" 2>&1; then
+      echo "  ✓ ${storage_test} passed"
+      PASSED+=("$storage_test:baseline")
+    else
+      echo "  ✗ ${storage_test} failed (see ${log_file})"
+      echo "  --- ${storage_test} failure log (last 60 lines) ---"
+      tail -60 "${log_file}" 2>/dev/null || true
+      echo "  --- end ${storage_test} failure log ---"
+      FAILED+=("$storage_test:baseline")
+    fi
+  done
+fi
+
 echo "========================================"
 echo "Test Results"
 echo "========================================"

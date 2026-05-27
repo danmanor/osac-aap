@@ -1,0 +1,58 @@
+---
+argument_specs:
+  main:
+    short_description: Storage provider interface role
+    description: >
+      Dispatches storage operations to provider-specific template roles.
+      Validates inputs and enforces the provider and protocol allowlists
+      before any dynamic role name construction to prevent role-name injection.
+    options:
+      storage_provider_tiers:
+        type: list
+        required: true
+        description: >
+          List of storage tier definitions. Each tier declares its name, protocol,
+          provider, and optional QoS/quota settings. The dispatcher groups tiers
+          by provider and dispatches to each provider's template role with the
+          filtered tier subset.
+          Example: [{name: default, protocol: nfs, provider: vast,
+          qos_policy: default-qos,
+          qos_limits: {static_limits: {max_reads_bw_mbps: 100, max_writes_bw_mbps: 100}}}]
+      storage_provider_action:
+        type: str
+        required: true
+        choices:
+          - setup
+          - ensure_storage_class
+          - teardown
+        description: >
+          Which storage operation to perform. setup provisions provider-side
+          resources. ensure_storage_class creates K8s Secret and StorageClass
+          on the target cluster (JIT). teardown removes all provisioned resources.
+      storage_provider_provisioning_target:
+        type: str
+        required: true
+        choices:
+          - vmaas
+          - hcp_control_plane
+          - hcp_worker_root
+          - hcp_data_plane
+        description: >
+          Provisioning context. vmaas is the default VMaaS path.
+          CaaS targets (hcp_control_plane, hcp_worker_root, hcp_data_plane)
+          route to HyperShift integration points (stubbed until HyperShift
+          storage integration is available).
+      storage_provider_block_encryption_passphrase:
+        type: str
+        required: false
+        default: ""
+        description: >
+          Passphrase for block encryption. Passed from the Tenant CR event payload.
+          When empty, block StorageClasses are created without host encryption.
+      storage_provider_snapshots_enabled:
+        type: bool
+        required: false
+        default: true
+        description: >
+          Create a VolumeSnapshotClass alongside the StorageClass for K8s-native
+          snapshot support. Skipped if the VolumeSnapshot CRD is not installed.

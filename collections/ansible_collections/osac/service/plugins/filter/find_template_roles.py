@@ -264,6 +264,7 @@ class TemplateTypeEnum(StrEnum):
     cluster = "cluster"
     compute_instance = "compute_instance"
     network = "network"
+    storage_provider = "storage_provider"
 
 
 class NetworkClassCapabilities(Base):
@@ -536,6 +537,13 @@ class Collection(Base):
                             implementation_strategy=metadata.implementation_strategy,
                             capabilities=metadata.capabilities or NetworkClassCapabilities(),
                         )
+                    elif metadata.template_type == TemplateTypeEnum.storage_provider:
+                        # Storage provider roles are not yielded as compute instance or
+                        # network templates — they are dispatched via osac.service.storage_provider.
+                        display.vvv(
+                            f"Skipping storage_provider role '{path.name}' in collection '{self.name}'"
+                        )
+                        continue
                     else:
                         yield ComputeInstanceTemplate(**common, spec_defaults=metadata.spec_defaults)
                 except Exception as e:
