@@ -5,7 +5,8 @@ metadata:
   name: {{ include "osac-aap.instanceName" . }}
   namespace: {{ .Release.Namespace }}
   labels:
-    {{- include "osac-aap.labels" . | nindent 4 }}
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
 spec:
   controller:
     disabled: {{ .Values.aap.instance.controller.disabled }}
