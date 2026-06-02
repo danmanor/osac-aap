@@ -42,7 +42,7 @@ SecurityGroups translate to Kubernetes NetworkPolicy resources that enforce netw
 **Key behaviors:**
 - One NetworkPolicy per SecurityGroup (named `sg-{security-group-name}`)
 - NetworkPolicies are deployed to all Subnet namespaces associated with the SecurityGroup's parent VirtualNetwork
-- Pod selection uses label `security-group.osac.io/{sg-name}: ""`
+- Pod selection uses label `security-group.osac.openshift.io/{sg-name}: ""`
 - Multiple SecurityGroups are additive: pods can have multiple SG labels, and traffic is allowed if ANY NetworkPolicy allows it
 - Empty ingress/egress rule arrays result in deny-all for that direction
 
@@ -64,8 +64,8 @@ Pods can have multiple SecurityGroup associations:
 ```yaml
 metadata:
   labels:
-    security-group.osac.io/web-sg: ""
-    security-group.osac.io/db-sg: ""
+    security-group.osac.openshift.io/web-sg: ""
+    security-group.osac.openshift.io/db-sg: ""
 ```
 Each SecurityGroup creates its own NetworkPolicy, and Kubernetes applies them additively (traffic allowed if ANY policy allows).
 

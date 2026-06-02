@@ -83,7 +83,7 @@ ClusterOrder resources provide these in `spec.templateParameters`. The same temp
 Before submitting a ClusterOrder, ensure:
 
 1. `NETWORK_STEPS_COLLECTION=nico.steps` is set in the AAP environment
-2. A **Tenant CR** exists with the `osac.io/bgp-asn` annotation set to the local BGP ASN
+2. A **Tenant CR** exists with the `osac.openshift.io/bgp-asn` annotation set to the local BGP ASN
 3. The ClusterOrder has the `osac.openshift.io/tenant` annotation pointing to the Tenant name
 4. An **InfraEnv** resource named `hardware-inventory` exists in the `hardware-inventory` namespace
 

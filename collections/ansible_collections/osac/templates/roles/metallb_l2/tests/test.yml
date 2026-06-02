@@ -146,7 +146,7 @@
           ansible.builtin.assert:
             that:
               - ipaddresspool_result.resources[0].metadata.labels['osac.openshift.io/publicippool'] == test_pool_name
-              - ipaddresspool_result.resources[0].metadata.labels['osac.io/managed-by'] == 'osac-fulfillment'
+              - ipaddresspool_result.resources[0].metadata.labels['osac.openshift.io/managed-by'] == 'osac-fulfillment'
             fail_msg: "IPAddressPool labels incorrect"
             success_msg: "IPAddressPool labels correct"
 
@@ -170,7 +170,7 @@
           ansible.builtin.assert:
             that:
               - l2advertisement_result.resources[0].metadata.labels['osac.openshift.io/publicippool'] == test_pool_name
-              - l2advertisement_result.resources[0].metadata.labels['osac.io/managed-by'] == 'osac-fulfillment'
+              - l2advertisement_result.resources[0].metadata.labels['osac.openshift.io/managed-by'] == 'osac-fulfillment'
             fail_msg: "L2Advertisement labels incorrect"
             success_msg: "L2Advertisement labels correct"
 
@@ -272,7 +272,7 @@
           ansible.builtin.assert:
             that:
               - lb_svc_result.resources[0].metadata.labels['osac.openshift.io/publicip'] == test_ip_name
-              - lb_svc_result.resources[0].metadata.labels['osac.io/managed-by'] == 'osac-fulfillment'
+              - lb_svc_result.resources[0].metadata.labels['osac.openshift.io/managed-by'] == 'osac-fulfillment'
             fail_msg: "LoadBalancer Service labels incorrect"
             success_msg: "LoadBalancer Service labels correct"
 
@@ -613,7 +613,7 @@
                   metallb.universe.tf/address-pool: "{{ test_pool_name }}"
                 labels:
                   osac.openshift.io/publicip: "{{ test_ip_name }}"
-                  osac.io/managed-by: osac-fulfillment
+                  osac.openshift.io/managed-by: osac-fulfillment
               spec:
                 type: LoadBalancer
                 selector: {}
@@ -711,7 +711,7 @@
           ansible.builtin.assert:
             that:
               - lb_svc_result.resources[0].metadata.labels['osac.openshift.io/publicip'] == test_ip_name
-              - lb_svc_result.resources[0].metadata.labels['osac.io/managed-by'] == 'osac-fulfillment'
+              - lb_svc_result.resources[0].metadata.labels['osac.openshift.io/managed-by'] == 'osac-fulfillment'
             fail_msg: "LB Service labels incorrect after attach"
             success_msg: "LB Service labels correct"
 
@@ -902,7 +902,7 @@
           ansible.builtin.assert:
             that:
               - parking_svc_after_detach.resources[0].metadata.labels['osac.openshift.io/publicip'] == test_ip_name
-              - parking_svc_after_detach.resources[0].metadata.labels['osac.io/managed-by'] == 'osac-fulfillment'
+              - parking_svc_after_detach.resources[0].metadata.labels['osac.openshift.io/managed-by'] == 'osac-fulfillment'
             fail_msg: "Re-created parking Service labels incorrect after detach"
             success_msg: "Parking Service labels correct"
 
@@ -992,7 +992,7 @@
                   metallb.universe.tf/loadBalancerIPs: "192.168.100.10"
                 labels:
                   osac.openshift.io/publicip: "{{ test_ip_name }}"
-                  osac.io/managed-by: osac-fulfillment
+                  osac.openshift.io/managed-by: osac-fulfillment
               spec:
                 type: LoadBalancer
                 selector:

@@ -18,9 +18,9 @@
     _nmstate_offset_map: >-
       {%- set result = {} -%}
       {%- for cr in _nmstate_existing_crs.resources -%}
-        {%- if cr.metadata.annotations is defined and 'osac.io/ip-offset' in cr.metadata.annotations -%}
+        {%- if cr.metadata.annotations is defined and 'osac.openshift.io/ip-offset' in cr.metadata.annotations -%}
           {%- set agent_name = cr.metadata.name | regex_replace('^' ~ nmstate_config_cluster_name ~ '-', '') -%}
-          {%- set _ = result.update({agent_name: cr.metadata.annotations['osac.io/ip-offset'] | int}) -%}
+          {%- set _ = result.update({agent_name: cr.metadata.annotations['osac.openshift.io/ip-offset'] | int}) -%}
         {%- endif -%}
       {%- endfor -%}
       {{ result }}

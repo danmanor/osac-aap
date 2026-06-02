@@ -31,7 +31,7 @@
         namespace: metallb-system
         labels:
           osac.openshift.io/publicippool: "{{ pool_name }}"
-          osac.io/managed-by: osac-fulfillment
+          osac.openshift.io/managed-by: osac-fulfillment
       spec:
         autoAssign: false
         avoidBuggyIPs: true  # skip .0 and .255
@@ -62,7 +62,7 @@
         namespace: metallb-system
         labels:
           osac.openshift.io/publicippool: "{{ pool_name }}"
-          osac.io/managed-by: osac-fulfillment
+          osac.openshift.io/managed-by: osac-fulfillment
       spec:
         ipAddressPools:
           - "{{ pool_name }}"

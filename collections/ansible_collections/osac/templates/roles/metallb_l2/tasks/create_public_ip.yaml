@@ -41,7 +41,7 @@
           metallb.universe.tf/address-pool: "{{ ip_pool_name }}"
         labels:
           osac.openshift.io/publicip: "{{ ip_name }}"
-          osac.io/managed-by: osac-fulfillment
+          osac.openshift.io/managed-by: osac-fulfillment
       spec:
         type: LoadBalancer
         selector: {}

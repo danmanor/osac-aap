@@ -150,11 +150,11 @@
 
 - name: Extract BGP ASN from Tenant annotation
   ansible.builtin.set_fact:
-    nico_local_asn: "{{ tenant_cr_result.resources[0].metadata.annotations['osac.io/bgp-asn'] }}"
+    nico_local_asn: "{{ tenant_cr_result.resources[0].metadata.annotations['osac.openshift.io/bgp-asn'] }}"
   when:
     - tenant_cr_result.resources | length > 0
     - tenant_cr_result.resources[0].metadata.annotations is defined
-    - "'osac.io/bgp-asn' in tenant_cr_result.resources[0].metadata.annotations"
+    - "'osac.openshift.io/bgp-asn' in tenant_cr_result.resources[0].metadata.annotations"
 
 - name: Validate BGP ASN was found
   ansible.builtin.assert:
@@ -164,7 +164,7 @@
     fail_msg: >
       BGP ASN not found on Tenant CR '{{ tenant_name }}'
       in namespace '{{ lookup('env', 'POD_NAMESPACE') }}'.
-      Set the osac.io/bgp-asn annotation on the Tenant resource.
+      Set the osac.openshift.io/bgp-asn annotation on the Tenant resource.
 
 - name: Compute total expected worker count
   ansible.builtin.set_fact:

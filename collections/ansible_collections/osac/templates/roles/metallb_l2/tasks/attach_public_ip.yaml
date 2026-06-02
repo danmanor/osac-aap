@@ -130,7 +130,7 @@
             namespace: "{{ attach_vm_namespace }}"
             labels:
               osac.openshift.io/publicip: "{{ public_ip_name }}"
-              osac.io/managed-by: osac-fulfillment
+              osac.openshift.io/managed-by: osac-fulfillment
             annotations:
               metallb.universe.tf/address-pool: "{{ attach_pool_name }}"
               metallb.universe.tf/loadBalancerIPs: "{{ attach_ip_address }}"
@@ -170,7 +170,7 @@
             namespace: metallb-system
             labels:
               osac.openshift.io/publicip: "{{ public_ip_name }}"
-              osac.io/managed-by: osac-fulfillment
+              osac.openshift.io/managed-by: osac-fulfillment
             annotations:
               metallb.universe.tf/address-pool: "{{ attach_pool_name }}"
               metallb.universe.tf/loadBalancerIPs: "{{ attach_ip_address }}"

@@ -96,13 +96,13 @@
             name: "sg-{{ sg_name }}"
             namespace: "{{ item }}"
             labels:
-              osac.io/managed-by: osac-fulfillment
-              osac.io/security-group: "{{ sg_name }}"
-              osac.io/virtual-network: "{{ sg_virtual_network }}"
+              osac.openshift.io/managed-by: osac-fulfillment
+              osac.openshift.io/security-group: "{{ sg_name }}"
+              osac.openshift.io/virtual-network: "{{ sg_virtual_network }}"
           spec:
             podSelector:
               matchLabels:
-                osac.io/security-group: "{{ sg_name }}"
+                osac.openshift.io/security-group: "{{ sg_name }}"
             policyTypes: "{{ policy_types }}"
             ingress: "{{ ingress_policy_rules }}"
             egress: "{{ egress_policy_rules }}"
