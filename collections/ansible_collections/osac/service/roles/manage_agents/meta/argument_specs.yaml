@@ -44,6 +44,11 @@ argument_specs:
       manage_agents_cluster_order_name:
         type: str
         required: true
+  unbind_agents_for_reclaim:
+    options:
+      manage_agents_cluster_order_name:
+        type: str
+        required: true
   import_agents:
     options:
       manage_agents_node_names:
