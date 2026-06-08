@@ -2,6 +2,9 @@
 
 Provisions networking resources using ClusterUserDefinedNetwork (CUDN) on OpenShift.
 
+> **Note:** SecurityGroup enforcement (NetworkPolicy) has been extracted to the standalone
+> `osac.templates.network_policy` role so it can be reused across any K8s-based NetworkClass.
+
 ## Resources
 
 ### VirtualNetwork
@@ -35,43 +38,6 @@ Subnets subdivide VirtualNetworks into logical segments with isolated namespaces
 - No additional network configuration needed on pods
 - Network attachment is namespace-based, not interface-based
 
-### SecurityGroup
-
-SecurityGroups translate to Kubernetes NetworkPolicy resources that enforce network traffic rules on pods within Subnet namespaces.
-
-**Key behaviors:**
-- One NetworkPolicy per SecurityGroup (named `sg-{security-group-name}`)
-- NetworkPolicies are deployed to all Subnet namespaces associated with the SecurityGroup's parent VirtualNetwork
-- Pod selection uses label `osac.openshift.io/{sg-name}: ""` (where `{sg-name}` is the SecurityGroup resource name, e.g. `securitygroup-4p49v`)
-- Multiple SecurityGroups are additive: pods can have multiple SG labels, and traffic is allowed if ANY NetworkPolicy allows it
-- Empty ingress/egress rule arrays result in deny-all for that direction
-
-**Rule translation:**
-- Protocol "all" → omit protocol field in NetworkPolicy (allows all protocols). Port fields are not applicable and ignored by the API.
-- Protocol "tcp" or "udp" → include protocol field with port/endPort. Port fields (`portFrom`, `portTo`) are required.
-- Protocol "icmp" → port fields are not applicable and ignored by the API. **Note:** Standard Kubernetes NetworkPolicy does not support ICMP protocol filtering. ICMP rules with a source/destination CIDR will allow all protocols from that CIDR, not just ICMP.
-- Port ranges: if portFrom == portTo, use single port; if different, use port + endPort
-- Source CIDR → ingress.from.ipBlock.cidr
-- Destination CIDR → egress.to.ipBlock.cidr
-
-**Namespace targeting:**
-- SecurityGroups apply to namespaces labeled with `osac.openshift.io/virtual-network: {vn-name}`
-- If no matching namespaces exist when SecurityGroup is created, the task succeeds with a warning
-- When new Subnets are created, the osac-operator re-triggers SecurityGroup reconciliation to apply policies
-
-**Multi-SecurityGroup pattern:**
-Pods can have multiple SecurityGroup associations:
-```yaml
-metadata:
-  labels:
-    osac.openshift.io/securitygroup-4p49v: ""
-    osac.openshift.io/securitygroup-7x2km: ""
-```
-Each SecurityGroup creates its own NetworkPolicy, and Kubernetes applies them additively (traffic allowed if ANY policy allows).
-
-**Known Limitations:**
-- ICMP protocol filtering is not supported by standard Kubernetes NetworkPolicy (only TCP, UDP, SCTP are supported). ICMP rules are translated to NetworkPolicy rules without protocol specification, which effectively allows all traffic from the specified CIDR rather than ICMP-only.
-
 ## Implementation Strategy
 
 This role implements the `cudn_net` NetworkClass strategy using OpenShift's ClusterUserDefinedNetwork (CUDN) feature. The implementation follows these patterns:
@@ -85,19 +51,12 @@ This role implements the `cudn_net` NetworkClass strategy using OpenShift's Clus
 - Label namespace with parent VirtualNetwork reference
 - Pods deployed in namespace automatically connect to CUDN
 
-**For SecurityGroups:**
-- Create NetworkPolicy resources in Subnet namespaces
-- Translate SecurityGroup rules to NetworkPolicy ingress/egress specs
-- Use pod labels for traffic targeting
-
 ## Task Files
 
 - `tasks/create_virtual_network.yaml` - Creates ClusterUserDefinedNetwork CR from VirtualNetwork resource
 - `tasks/delete_virtual_network.yaml` - Removes ClusterUserDefinedNetwork CR
 - `tasks/create_subnet.yaml` - Creates namespace with CUDN labels from Subnet resource
 - `tasks/delete_subnet.yaml` - Removes namespace
-- `tasks/create_security_group.yaml` - Creates NetworkPolicy resources from SecurityGroup rules
-- `tasks/delete_security_group.yaml` - Removes NetworkPolicy resources
 
 ## Usage
 
@@ -123,15 +82,4 @@ This role implements the `cudn_net` NetworkClass strategy using OpenShift's Clus
   vars:
     subnet: "{{ ansible_eda.event.payload }}"
     subnet_name: "{{ ansible_eda.event.payload.metadata.name }}"
-```
-
-### Example: SecurityGroup Provisioning
-
-```yaml
-- name: Create SecurityGroup
-  ansible.builtin.include_role:
-    name: cudn_net
-    tasks_from: create_security_group
-  vars:
-    security_group: "{{ ansible_eda.event.payload }}"
 ```
