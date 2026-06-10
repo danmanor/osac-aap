@@ -20,8 +20,17 @@
 #   Test 5 (Windows with explicit image accepted):
 #     ansible-playbook ... -e test_windows_with_image=true
 #
-#   Test 6 (security group labels propagated to VM):
+#   Test 6 (Unknown OS value falls through to linux defaults):
+#     ansible-playbook ... -e test_unknown_os_fallback=true
+#
+#   Test 7 (security group labels propagated to VM):
 #     ansible-playbook ... -e test_create_sg_labels=true
+#
+#   Test 8 (Windows sysprep without password rejected):
+#     ansible-playbook ... -e test_windows_sysprep_requires_password=true
+#
+#   Test 9 (Windows sysprep with valid password accepted):
+#     ansible-playbook ... -e test_windows_sysprep_valid=true
 
 # ──────────────────────────────────────────────────────────────
 # Test 1: Verify spec defaults are merged into a minimal fixture
@@ -247,6 +256,7 @@
             default_spec: "{{ _guest_os_windows_default_spec }}"
             default_arg_specs: "{{ _guest_os_windows_default_arg_specs }}"
             template_parameters: {}
+            vm_enable_sysprep: false
 
         - name: Set compute instance name
           ansible.builtin.set_fact:
@@ -263,8 +273,55 @@
               - vm_image_source == "registry.example.com/osac/windows-golden:ltsc2022"
             fail_msg: "Expected vm_image_source from spec, got {{ vm_image_source | default('undefined') }}"
 
+# Test 6: Unknown OS value falls through to linux defaults
+# Expected: CPU=2, memory=2Gi, disk=10Gi (linux defaults, not Windows)
 # ──────────────────────────────────────────────────────────────
-# Test 6: Security group labels are propagated to default_vm_labels
+- name: "Test ocp_virt_vm -- Unknown OS value falls through to linux behavior"
+  hosts: localhost
+
+  collections:
+    - osac.templates
+
+  vars:
+    compute_instance_label: "osac.openshift.io/computeinstance"
+
+  tasks:
+    - when: test_unknown_os_fallback | default(false) | bool
+      block:
+        - name: Load ocp_virt_vm role defaults
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../defaults/main.yaml"
+
+        - name: Load unknown OS fixture with guestOSFamily freebsd
+          ansible.builtin.set_fact:
+            compute_instance: "{{ lookup('file', 'fixtures/computeinstance-unknown-os-test.yaml') | from_yaml }}"
+            template_parameters: {}
+
+        - name: Run create_validate
+          ansible.builtin.include_role:
+            name: osac.templates.ocp_virt_vm
+            tasks_from: create_validate.yaml
+
+        - name: Assert CPU cores match linux default not Windows
+          ansible.builtin.assert:
+            that:
+              - vm_cpu_cores | int == 2
+            fail_msg: "Expected linux default (2 cores), got {{ vm_cpu_cores | default('undefined') }}"
+
+        - name: Assert memory matches linux default not Windows
+          ansible.builtin.assert:
+            that:
+              - vm_memory == "2Gi"
+            fail_msg: "Expected linux default (2Gi), got {{ vm_memory | default('undefined') }}"
+
+        - name: Assert boot disk size matches linux default not Windows
+          ansible.builtin.assert:
+            that:
+              - vm_boot_disk_size == "10Gi"
+            fail_msg: "Expected linux default (10Gi), got {{ vm_boot_disk_size | default('undefined') }}"
+
+# ──────────────────────────────────────────────────────────────
+# Test 7: Security group labels are propagated to default_vm_labels
 # Expected: default_vm_labels includes osac.openshift.io/<sg-ref>: ""
 #           for each securityGroupRef across all spec.networkAttachments
 # ──────────────────────────────────────────────────────────────
@@ -336,3 +393,115 @@
             fail_msg: >-
               Expected 4 labels in default_vm_labels (1 base + 3 SGs),
               got {{ default_vm_labels | length }}: {{ default_vm_labels | default('undefined') }}
+
+# ──────────────────────────────────────────────────────────────
+# Test 8: Windows sysprep enabled without password must fail
+# ──────────────────────────────────────────────────────────────
+- name: "Test ocp_virt_vm -- Windows sysprep requires admin password"
+  hosts: localhost
+
+  collections:
+    - osac.templates
+
+  vars:
+    compute_instance_label: "osac.openshift.io/computeinstance"
+
+  tasks:
+    - when: test_windows_sysprep_requires_password | default(false) | bool
+      block:
+        - name: Load ocp_virt_vm role defaults (Windows profile maps)
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../defaults/main.yaml"
+
+        - name: Load Windows fixture with sysprep enabled and no password
+          ansible.builtin.set_fact:
+            compute_instance: "{{ lookup('file', 'fixtures/computeinstance-windows-with-image-test.yaml') | from_yaml }}"
+            guest_os_family: windows
+            default_spec: "{{ _guest_os_windows_default_spec }}"
+            default_arg_specs: "{{ _guest_os_windows_default_arg_specs }}"
+            template_parameters: {}
+            vm_enable_sysprep: true
+            vm_sysprep_admin_password: ""
+
+        - name: Set compute instance name
+          ansible.builtin.set_fact:
+            compute_instance_name: "{{ compute_instance.metadata.name }}"
+
+        - name: Run create_validate (expect failure — empty sysprep password)
+          block:
+            - name: Include create_validate
+              ansible.builtin.include_role:
+                name: osac.templates.ocp_virt_vm
+                tasks_from: create_validate.yaml
+          rescue:
+            - name: Capture error message
+              ansible.builtin.set_fact:
+                validation_error: "{{ ansible_failed_result.msg | default('') }}"
+                sysprep_password_failed: true
+
+            - name: Verify failure was due to missing sysprep password
+              ansible.builtin.assert:
+                that:
+                  - "'vm_sysprep_admin_password' in validation_error"
+                fail_msg: "Validation failed for unexpected reason: {{ validation_error }}"
+
+        - name: Verify validation failed without sysprep password
+          ansible.builtin.assert:
+            that:
+              - sysprep_password_failed | default(false)
+            fail_msg: >-
+              Expected create_validate to fail when vm_enable_sysprep is true
+              and vm_sysprep_admin_password is empty
+
+# ──────────────────────────────────────────────────────────────
+# Test 9: Windows sysprep enabled with valid password passes
+# Expected: validation passes, vm_hostname truncated to 15 chars
+# ──────────────────────────────────────────────────────────────
+- name: "Test ocp_virt_vm -- Windows sysprep with valid password passes validation"
+  hosts: localhost
+
+  collections:
+    - osac.templates
+
+  vars:
+    compute_instance_label: "osac.openshift.io/computeinstance"
+
+  tasks:
+    - when: test_windows_sysprep_valid | default(false) | bool
+      block:
+        - name: Load ocp_virt_vm role defaults (Windows profile maps)
+          ansible.builtin.include_vars:
+            file: "{{ playbook_dir }}/../defaults/main.yaml"
+
+        - name: Load Windows fixture with sysprep enabled and valid password
+          ansible.builtin.set_fact:
+            compute_instance: "{{ lookup('file', 'fixtures/computeinstance-windows-with-image-test.yaml') | from_yaml }}"
+            guest_os_family: windows
+            default_spec: "{{ _guest_os_windows_default_spec }}"
+            default_arg_specs: "{{ _guest_os_windows_default_arg_specs }}"
+            template_parameters: {}
+            vm_enable_sysprep: true
+            vm_sysprep_admin_password: "{{ lookup('ansible.builtin.password', '/dev/null length=16 chars=ascii_letters,digits') }}"
+
+        - name: Set compute instance name
+          ansible.builtin.set_fact:
+            compute_instance_name: "{{ compute_instance.metadata.name }}"
+
+        - name: Run create_validate
+          ansible.builtin.include_role:
+            name: osac.templates.ocp_virt_vm
+            tasks_from: create_validate.yaml
+
+        - name: Verify image source from ComputeInstance spec
+          ansible.builtin.assert:
+            that:
+              - vm_image_source == "registry.example.com/osac/windows-golden:ltsc2022"
+            fail_msg: "Expected vm_image_source from spec, got {{ vm_image_source | default('undefined') }}"
+
+        - name: Verify vm_hostname is set and truncated to 15 chars (NetBIOS limit)
+          ansible.builtin.assert:
+            that:
+              - vm_hostname is defined
+              - vm_hostname | length <= 15
+              - vm_hostname == "test-win-with-i"
+            fail_msg: "Expected vm_hostname='test-win-with-i' (truncated), got {{ vm_hostname | default('undefined') }}"

@@ -5,19 +5,12 @@ argument_specs:
         type: str
         required: false
         default: "linux"
-        choices:
-          - linux
-          - windows
         description: >
-          OS family for the guest VM. Defaults to 'linux'. The role always runs inference at startup
-          and applies the highest-priority match: (1) ComputeInstance annotation
-          osac.openshift.io/guest-os-family (linux|windows), or (2) spec.image.sourceRef containing
-          the substring 'containerdisks/windows' (a common community naming convention for Windows
-          disk images — not a Microsoft-official catalog). If neither matches, the default 'linux'
-          is used. For Windows, spec.image.sourceRef must be set explicitly: there is no endorsed
-          default Windows container disk. The 'linux' profile uses cloud-init / SSH defaults;
-          'windows' applies Windows sizing defaults, sysprep, Hyper-V / clock domain spec,
-          and matching delete cleanup.
+          OS family for the guest VM. Read from ComputeInstance spec.guestOSFamily field,
+          defaults to 'linux'. Unrecognized values (including typos) fall back to the 'linux'
+          profile. The 'linux' profile uses cloud-init / SSH defaults; 'windows' applies
+          Windows sizing defaults, sysprep, Hyper-V / clock domain spec, and matching
+          delete cleanup.
       compute_instance:
         type: dict
         required: true

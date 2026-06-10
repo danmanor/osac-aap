@@ -3,15 +3,24 @@
 # NOT overrideable: validate, build_spec (CRITICAL steps for correct operation)
 # Variables: compute_instance, compute_instance_name, tenant_target_namespace,
 # template_id, template_parameters, default_arg_specs, default_vm_labels, default_spec,
-# guest_os_family (linux | windows).
+# guest_os_family (from CR spec field, defaults to linux).
 ---
 - name: Include get remote cluster kubeconfig
   ansible.builtin.include_role:
     name: osac.service.common
     tasks_from: get_remote_cluster_kubeconfig
 
-- name: Infer guest_os_family (annotation or Windows container disk image)
-  ansible.builtin.include_tasks: infer_guest_os_family.yaml
+- name: Extract guest OS family from ComputeInstance spec
+  ansible.builtin.set_fact:
+    guest_os_family: "{{ (compute_instance.spec.guestOSFamily | default(guest_os_family)) | lower }}"
+
+- name: Warn on unrecognized guest OS family
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: Unrecognized guestOSFamily '{{ guest_os_family }}'.
+      Falling back to linux defaults.
+      Supported values: linux, windows
+  when: guest_os_family not in ['linux', 'windows']
 
 - name: Determine target namespace for VM resources
   ansible.builtin.set_fact:

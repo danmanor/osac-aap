@@ -1,10 +1,4 @@
 ---
-- name: Assert guest_os_family is supported
-  ansible.builtin.assert:
-    that:
-      - guest_os_family in ['linux', 'windows']
-    fail_msg: "guest_os_family must be 'linux' or 'windows', got '{{ guest_os_family }}'"
-
 - name: Merge template defaults into template_parameters
   ansible.builtin.set_fact:
     params: "{{ default_arg_specs | combine(template_parameters | default({})) }}"

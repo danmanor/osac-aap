@@ -8,8 +8,9 @@
     name: osac.service.common
     tasks_from: get_remote_cluster_kubeconfig
 
-- name: Infer guest_os_family (annotation or Windows container disk image)
-  ansible.builtin.include_tasks: infer_guest_os_family.yaml
+- name: Extract guest OS family from ComputeInstance spec
+  ansible.builtin.set_fact:
+    guest_os_family: "{{ (compute_instance.spec.guestOSFamily | default(guest_os_family)) | lower }}"
 
 - name: Determine target namespace for VM resources
   ansible.builtin.set_fact:

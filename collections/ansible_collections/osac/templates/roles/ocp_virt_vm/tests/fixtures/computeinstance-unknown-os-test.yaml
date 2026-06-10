@@ -2,13 +2,13 @@
 apiVersion: osac.openshift.io/v1alpha1
 kind: ComputeInstance
 metadata:
-  name: test-win-with-image
+  name: test-vm-unknown-os
   namespace: osac-system
 spec:
   templateID: osac.templates.ocp_virt_vm
-  guestOSFamily: "windows"
+  guestOSFamily: "freebsd"
   image:
     sourceType: registry
-    sourceRef: "registry.example.com/osac/windows-golden:ltsc2022"
+    sourceRef: "quay.io/containerdisks/fedora:latest"
 status:
   desiredConfigVersion: "1"
