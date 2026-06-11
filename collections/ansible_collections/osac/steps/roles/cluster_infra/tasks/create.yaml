@@ -52,15 +52,15 @@
   ansible.builtin.set_fact:
     total_desired_nodes: "{{ cluster_infra_node_requests | map(attribute='numberOfNodes') | map('int') | sum }}"
 
-- name: Wait for HostLeases to be allocated
+- name: Wait for BareMetalInstances to be allocated
   kubernetes.core.k8s_info:
     api_version: osac.openshift.io/v1alpha1
-    kind: HostLease
+    kind: BareMetalInstance
     namespace: "{{ lookup('env', 'POD_NAMESPACE') }}"
-  register: hostleases_result
+  register: baremetalinstances_result
   until: >
     (
-      hostleases_result.resources |
+      baremetalinstances_result.resources |
       selectattr('metadata.ownerReferences', 'defined') |
       map(attribute='metadata.ownerReferences') |
       flatten |
@@ -76,10 +76,10 @@
   ansible.builtin.set_fact:
     allocated_host_ids: []
 
-- name: Build allocated host IDs from HostLeases
+- name: Build allocated host IDs from BareMetalInstances
   ansible.builtin.set_fact:
     allocated_host_ids: "{{ allocated_host_ids + [item.spec.externalHostID] }}"
-  loop: "{{ hostleases_result.resources }}"
+  loop: "{{ baremetalinstances_result.resources }}"
   when:
     - item.metadata.ownerReferences is defined
     - item.metadata.ownerReferences | selectattr('controller', 'defined') | selectattr('controller', 'equalto', true) | selectattr('uid', 'equalto', baremetalpool_uid) | list | length > 0
@@ -91,7 +91,7 @@
     msg: "Allocated host IDs: {{ allocated_host_ids }}"
 
 # Handle scale down **before** scale up: detach agents not in the
-# HostLease allocation before attaching new ones.
+# BareMetalInstance allocation before attaching new ones.
 
 - name: Wait for the Agents to be removed from the cluster
   ansible.builtin.include_role:

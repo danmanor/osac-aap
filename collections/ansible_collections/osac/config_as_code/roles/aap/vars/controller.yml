@@ -303,11 +303,11 @@ controller_templates: # noqa: var-naming[no-role-prefix]
     allow_simultaneous: true
     ask_variables_on_launch: true
     verbosity: 0
-  - name: "{{ aap_prefix }}-create-host-lease"
+  - name: "{{ aap_prefix }}-create-bare-metal-instance"
     project: "{{ aap_prefix }}"
     organization: "{{ aap_organization_name }}"
     job_type: run
-    playbook: "playbook_osac_create_host_lease.yml"
+    playbook: "playbook_osac_create_bare_metal_instance.yml"
     inventory: "{{ aap_prefix }}-bare-metal-fulfillment"
     execution_environment: "{{ aap_prefix }}-ee"
     instance_groups:
@@ -315,11 +315,11 @@ controller_templates: # noqa: var-naming[no-role-prefix]
     allow_simultaneous: true
     ask_variables_on_launch: true
     verbosity: 0
-  - name: "{{ aap_prefix }}-delete-host-lease"
+  - name: "{{ aap_prefix }}-delete-bare-metal-instance"
     project: "{{ aap_prefix }}"
     organization: "{{ aap_organization_name }}"
     job_type: run
-    playbook: "playbook_osac_delete_host_lease.yml"
+    playbook: "playbook_osac_delete_bare_metal_instance.yml"
     inventory: "{{ aap_prefix }}-bare-metal-fulfillment"
     execution_environment: "{{ aap_prefix }}-ee"
     instance_groups:

@@ -1,24 +1,24 @@
 ---
 - name: Fail if host class is not openstack
   ansible.builtin.fail:
-    msg: "bm_host_private_network requires hostClass 'openstack', got '{{ host_lease.spec.hostClass | default('') }}'"
-  when: host_lease.spec.hostClass | default('') != "openstack"
+    msg: "bm_host_private_network requires hostClass 'openstack', got '{{ bare_metal_instance.spec.hostClass | default('') }}'"
+  when: bare_metal_instance.spec.hostClass | default('') != "openstack"
 
 - name: Fail if network class is not openstack
   ansible.builtin.fail:
-    msg: "bm_host_private_network requires networkClass 'openstack', got '{{ host_lease.spec.networkClass | default('') }}'"
-  when: host_lease.spec.networkClass | default('') != "openstack"
+    msg: "bm_host_private_network requires networkClass 'openstack', got '{{ bare_metal_instance.spec.networkClass | default('') }}'"
+  when: bare_metal_instance.spec.networkClass | default('') != "openstack"
 
 - name: Parse template parameters
   ansible.builtin.set_fact:
-    template_params: "{{ host_lease.spec.templateParameters | default('{}') | from_json }}"
+    template_params: "{{ bare_metal_instance.spec.templateParameters | default('{}') | from_json }}"
 
 - name: Detach node from private network
   ansible.builtin.include_role:
     name: massopencloud.esi.l2
     tasks_from: set_networks_for_node
   vars:
-    node: "{{ host_lease.spec.externalHostID }}"
+    node: "{{ bare_metal_instance.spec.externalHostID }}"
     networks: []
 
 - name: Attach node to network after detach
@@ -26,13 +26,13 @@
     name: massopencloud.esi.l2
     tasks_from: set_networks_for_node
   vars:
-    node: "{{ host_lease.spec.externalHostID }}"
+    node: "{{ bare_metal_instance.spec.externalHostID }}"
     networks: "{{ [template_params.networkAfterDelete] }}"
   when: template_params.networkAfterDelete is defined
 
 - name: Network detachment completed
   ansible.builtin.debug:
     msg: >-
-      Node {{ host_lease.spec.externalHostID }} detached from private network
+      Node {{ bare_metal_instance.spec.externalHostID }} detached from private network
       {{ (template_params.networkAfterDelete is defined)
          | ternary('and attached to ' ~ template_params.networkAfterDelete | default(''), '') }}
