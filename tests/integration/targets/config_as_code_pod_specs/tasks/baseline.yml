@@ -15,11 +15,28 @@
       ansible.builtin.set_fact:
         _pod_spec: "{{ lookup('ansible.builtin.template', _template_path) }}"
 
+    - name: Parse rendered pod spec
+      ansible.builtin.set_fact:
+        _pod: "{{ _pod_spec | from_yaml }}"
+
+    - name: Extract compute-instance secretRef from envFrom
+      ansible.builtin.set_fact:
+        _compute_secret_ref: >-
+          {{
+            _pod.spec.containers[0].envFrom
+            | selectattr('secretRef', 'defined')
+            | map(attribute='secretRef')
+            | selectattr('name', 'equalto', 'compute-instance-operations-ig')
+            | list
+            | first
+          }}
+
     - name: Assert dedicated compute-instance secret is referenced optionally
       ansible.builtin.assert:
         that:
-          - "_pod_spec is search('name: compute-instance-operations-ig')"
-          - "_pod_spec is search('optional: true')"
+          - _compute_secret_ref is defined
+          - _compute_secret_ref.name == 'compute-instance-operations-ig'
+          - _compute_secret_ref.optional | default(false) | bool
         fail_msg: Expected optional compute-instance-operations-ig secretRef in pod spec
 
     - name: Assert cluster-fulfillment secret is not referenced
