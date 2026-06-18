@@ -85,3 +85,25 @@
 - name: Merge security group labels into default VM labels
   ansible.builtin.set_fact:
     default_vm_labels: "{{ default_vm_labels | combine(vm_sg_labels) }}"
+
+- name: Extract primary subnet reference for CUDN NAD
+  ansible.builtin.set_fact:
+    vm_cudn_nad_name: >-
+      {{
+        (
+          compute_instance.spec.networkAttachments
+          | default([])
+          | first
+          | default({})
+        ).subnetRef
+        | default('')
+      }}
+
+- name: Require networkAttachments with subnetRef
+  ansible.builtin.assert:
+    that:
+      - vm_cudn_nad_name | length > 0
+    fail_msg: >-
+      ComputeInstance must have spec.networkAttachments[0].subnetRef set.
+      This is required to determine the CUDN NetworkAttachmentDefinition
+      for VM networking. Ensure the ComputeInstance references a Subnet.

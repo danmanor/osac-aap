@@ -2,11 +2,9 @@
 apiVersion: osac.openshift.io/v1alpha1
 kind: ComputeInstance
 metadata:
-  name: test-vm-defaults
+  name: test-vm-no-subnet
   namespace: osac-system
 spec:
   templateID: osac.templates.ocp_virt_vm
-  networkAttachments:
-    - subnetRef: test-subnet
 status:
   desiredConfigVersion: "1"
