@@ -6,11 +6,11 @@
 # needed on other clusters).
 
 - name: Fail if provisioning target is not yet supported
-  when: _provisioning_target not in ['vmaas', 'hcp_data_plane']
+  when: _provisioning_target != 'vmaas'
   ansible.builtin.fail:
     msg: >-
-      VAST storage cleanup for target '{{ _provisioning_target }}' is not yet
-      implemented. Supported targets: vmaas, hcp_data_plane.
+      VAST storage teardown_cluster_storage for target '{{ _provisioning_target }}' is not yet
+      implemented. Only 'vmaas' is currently supported.
 
 - name: Validate tenant_name is a valid DNS label
   ansible.builtin.fail:

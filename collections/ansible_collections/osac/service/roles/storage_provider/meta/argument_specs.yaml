@@ -26,7 +26,6 @@ argument_specs:
           - ensure_storage_class
           - teardown_cluster_storage
           - teardown_backend
-          - teardown
         description: >
           Which storage operation to perform. setup provisions provider-side
           resources. ensure_storage_class creates K8s Secret and StorageClass
@@ -34,8 +33,7 @@ argument_specs:
           K8s resources (StorageClasses, VolumeSnapshotClasses, CSI Secret)
           without touching backend resources or hub Secret. teardown_backend
           removes backend resources (VAST tenant, views, quotas) and hub
-          Secret without touching cluster-side K8s resources. teardown removes
-          all provisioned resources (both cluster-side and backend).
+          Secret without touching cluster-side K8s resources.
       storage_provider_provisioning_target:
         type: str
         required: true
