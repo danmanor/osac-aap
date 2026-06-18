@@ -160,11 +160,14 @@
   delay: 10
   until: _r is not failed
 
-- name: Apply Kuadrant instance
+- name: Apply Kuadrant resources (namespace, service, Kuadrant, Authorino)
   kubernetes.core.k8s:
     kubeconfig: "{{ admin_kubeconfig }}"
     state: present
-    src: "{{ role_path }}/files/kuadrant-instance.yaml"
+    definition: "{{ item }}"
+  loop: "{{ lookup('ansible.builtin.file', role_path + '/files/kuadrant-instance.yaml') | from_yaml_all | list }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.metadata.name }}"
   register: _r
   retries: 5
   delay: 10

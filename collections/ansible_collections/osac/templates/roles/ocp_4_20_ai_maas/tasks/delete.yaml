@@ -117,11 +117,14 @@
     definition: "{{ lookup('ansible.builtin.template', 'gateway-resources.yaml.j2') | from_yaml }}"
   ignore_errors: true
 
-- name: Remove Kuadrant
+- name: Remove Kuadrant resources
   kubernetes.core.k8s:
     kubeconfig: "{{ admin_kubeconfig }}"
     state: absent
-    src: "{{ role_path }}/files/kuadrant-instance.yaml"
+    definition: "{{ item }}"
+  loop: "{{ lookup('ansible.builtin.file', role_path + '/files/kuadrant-instance.yaml') | from_yaml_all | list }}"
+  loop_control:
+    label: "{{ item.kind }}/{{ item.metadata.name }}"
   ignore_errors: true
 
 - name: Remove monitoring config

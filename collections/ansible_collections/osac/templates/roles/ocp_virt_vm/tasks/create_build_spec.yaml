@@ -25,7 +25,7 @@
                 bus: virtio
           interfaces:
             - name: default
-              masquerade: {}
+              bridge: {}
         features:
           smm:
             enabled: true
@@ -38,7 +38,9 @@
               spinlocks: 8191
       networks:
         - name: default
-          pod: {}
+          multus:
+            networkName: "{{ compute_instance_target_namespace }}/{{ vm_cudn_nad_name }}"
+            default: true
       volumes: "{{ root_disk_volume }}"
   when: guest_os_family != 'windows'
 
@@ -76,7 +78,7 @@
                 bus: virtio
           interfaces:
             - name: default
-              masquerade: {}
+              bridge: {}
           tpm: {}
           rng: {}
         features:
@@ -91,7 +93,9 @@
               spinlocks: 8192
       networks:
         - name: default
-          pod: {}
+          multus:
+            networkName: "{{ compute_instance_target_namespace }}/{{ vm_cudn_nad_name }}"
+            default: true
       volumes: "{{ root_disk_volume }}"
   when: guest_os_family == 'windows'
 

@@ -31,6 +31,12 @@
 #
 #   Test 9 (Windows sysprep with valid password accepted):
 #     ansible-playbook ... -e test_windows_sysprep_valid=true
+#
+#   Test 10 (CUDN NAD name extracted from networkAttachments):
+#     ansible-playbook ... -e test_create_cudn_nad_extracted=true
+#
+#   Test 11 (Missing networkAttachments rejected):
+#     ansible-playbook ... -e test_create_missing_subnet_fails=true
 
 # ──────────────────────────────────────────────────────────────
 # Test 1: Verify spec defaults are merged into a minimal fixture
@@ -505,3 +511,89 @@
               - vm_hostname | length <= 15
               - vm_hostname == "test-win-with-i"
             fail_msg: "Expected vm_hostname='test-win-with-i' (truncated), got {{ vm_hostname | default('undefined') }}"
+
+# ──────────────────────────────────────────────────────────────
+# Test 10: CUDN NAD name extracted from networkAttachments
+# Expected: vm_cudn_nad_name == subnetRef from fixture
+# ──────────────────────────────────────────────────────────────
+- name: "Test ocp_virt_vm -- CUDN NAD name extracted from networkAttachments"
+  hosts: localhost
+
+  collections:
+    - osac.templates
+
+  vars:
+    compute_instance_label: "osac.openshift.io/computeinstance"
+
+  tasks:
+    - when: test_create_cudn_nad_extracted | default(false) | bool
+      block:
+        - name: Read ComputeInstance fixture with networkAttachments
+          ansible.builtin.set_fact:
+            compute_instance: "{{ lookup('file', 'fixtures/computeinstance-with-security-groups.yaml') | from_yaml }}"
+
+        - name: Set compute instance name
+          ansible.builtin.set_fact:
+            compute_instance_name: "{{ compute_instance.metadata.name }}"
+
+        - name: Run create_validate to extract NAD name
+          ansible.builtin.include_role:
+            name: osac.templates.ocp_virt_vm
+            tasks_from: create_validate.yaml
+
+        - name: Verify vm_cudn_nad_name matches first subnetRef
+          ansible.builtin.assert:
+            that:
+              - vm_cudn_nad_name is defined
+              - vm_cudn_nad_name == "test-subnet"
+            fail_msg: "Expected vm_cudn_nad_name='test-subnet', got {{ vm_cudn_nad_name | default('undefined') }}"
+
+# ──────────────────────────────────────────────────────────────
+# Test 11: Missing networkAttachments must fail validation
+# Expected: validation fails with message about networkAttachments
+# ──────────────────────────────────────────────────────────────
+- name: "Test ocp_virt_vm -- missing networkAttachments rejected"
+  hosts: localhost
+
+  collections:
+    - osac.templates
+
+  vars:
+    compute_instance_label: "osac.openshift.io/computeinstance"
+
+  tasks:
+    - when: test_create_missing_subnet_fails | default(false) | bool
+      block:
+        - name: Read ComputeInstance fixture without networkAttachments
+          ansible.builtin.set_fact:
+            compute_instance: "{{ lookup('file', 'fixtures/computeinstance-no-subnet-test.yaml') | from_yaml }}"
+
+        - name: Set compute instance name
+          ansible.builtin.set_fact:
+            compute_instance_name: "{{ compute_instance.metadata.name }}"
+
+        - name: Run create_validate (expect failure — no networkAttachments)
+          block:
+            - name: Include create_validate
+              ansible.builtin.include_role:
+                name: osac.templates.ocp_virt_vm
+                tasks_from: create_validate.yaml
+          rescue:
+            - name: Capture error message
+              ansible.builtin.set_fact:
+                validation_error: "{{ ansible_failed_result.msg | default('') }}"
+                missing_subnet_failed: true
+
+            - name: Verify failure was due to missing networkAttachments
+              ansible.builtin.assert:
+                that:
+                  - "'spec.networkAttachments[0].subnetRef set' in validation_error"
+                fail_msg: "Validation failed for unexpected reason: {{ validation_error }}"
+
+        - name: Verify validation failed without networkAttachments
+          ansible.builtin.assert:
+            that:
+              - missing_subnet_failed | default(false)
+            fail_msg: >-
+              Expected create_validate to fail when spec.networkAttachments
+              is not set on the ComputeInstance

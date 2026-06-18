@@ -7,6 +7,8 @@ metadata:
 spec:
   templateID: osac.templates.ocp_virt_vm
   guestOSFamily: "windows"
+  networkAttachments:
+    - subnetRef: test-subnet
   image:
     sourceType: registry
     sourceRef: "registry.example.com/osac/windows-golden:ltsc2022"

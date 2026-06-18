@@ -194,6 +194,8 @@
   ignore_errors: true
 
 - name: Clear stale installedCSV from SM subscription
+  environment:
+    KUBECONFIG: "{{ admin_kubeconfig }}"
   ansible.builtin.shell: |
     export KUBECONFIG="{{ admin_kubeconfig | expanduser }}"
     oc patch sub servicemeshoperator3 -n openshift-operators --type merge \
@@ -203,6 +205,8 @@
   changed_when: false
 
 - name: Delete stale SM install plans
+  environment:
+    KUBECONFIG: "{{ admin_kubeconfig }}"
   ansible.builtin.shell: |
     export KUBECONFIG="{{ admin_kubeconfig | expanduser }}"
     oc get installplan -n openshift-operators -o json 2>/dev/null | \
@@ -217,6 +221,8 @@
   changed_when: false
 
 - name: Approve install plans and wait for SM CSV
+  environment:
+    KUBECONFIG: "{{ admin_kubeconfig }}"
   ansible.builtin.shell: |
     export KUBECONFIG="{{ admin_kubeconfig | expanduser }}"
     # Approve unapproved install plans that do not contain the reject version
@@ -309,6 +315,8 @@
   until: _r is not failed
 
 - name: Approve install plans and wait for sub-operator CSVs
+  environment:
+    KUBECONFIG: "{{ admin_kubeconfig }}"
   ansible.builtin.shell: |
     export KUBECONFIG="{{ admin_kubeconfig | expanduser }}"
     # Approve plans without v1.4.0, then delete unapproved v1.4.0 upgrade plans
@@ -368,6 +376,8 @@
   until: _r is not failed
 
 - name: Approve install plans and wait for RHCL CSV
+  environment:
+    KUBECONFIG: "{{ admin_kubeconfig }}"
   ansible.builtin.shell: |
     export KUBECONFIG="{{ admin_kubeconfig | expanduser }}"
     # Approve unapproved install plans that do not contain the reject version
