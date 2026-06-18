@@ -23,6 +23,9 @@ bootstrap:
 configAsCode:
   manifestSecret: "config-as-code-manifest-ig"
   secret: "config-as-code-ig"
+  eeImage: ""
+  projectGitUri: ""
+  projectGitBranch: ""
 
 serviceAccounts:
   osacSa: "osac-sa"
