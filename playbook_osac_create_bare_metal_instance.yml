@@ -16,5 +16,5 @@
   tasks:
     - name: Call the selected bare metal instance template
       ansible.builtin.include_role:
-        name: "osac.templates.{{ bare_metal_instance.spec.templateID }}"
+        name: "{{ bare_metal_instance.spec.templateID }}"
         tasks_from: create
