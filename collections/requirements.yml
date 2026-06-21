@@ -15,8 +15,6 @@ collections:
     version: "1.0.0"
   - name: ansible.controller
     version: "4.6.11"
-  - name: ansible.eda
-    version: "2.8.2"
   - name: infra.aap_configuration
     version: "4.4.0"
   - name: nvidia.bare_metal
