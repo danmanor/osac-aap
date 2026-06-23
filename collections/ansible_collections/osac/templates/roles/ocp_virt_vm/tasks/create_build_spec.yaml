@@ -38,9 +38,7 @@
               spinlocks: 8191
       networks:
         - name: default
-          multus:
-            networkName: "{{ compute_instance_target_namespace }}/{{ vm_cudn_nad_name }}"
-            default: true
+          pod: {}
       volumes: "{{ root_disk_volume }}"
   when: guest_os_family != 'windows'
 
@@ -93,9 +91,7 @@
               spinlocks: 8192
       networks:
         - name: default
-          multus:
-            networkName: "{{ compute_instance_target_namespace }}/{{ vm_cudn_nad_name }}"
-            default: true
+          pod: {}
       volumes: "{{ root_disk_volume }}"
   when: guest_os_family == 'windows'
 
