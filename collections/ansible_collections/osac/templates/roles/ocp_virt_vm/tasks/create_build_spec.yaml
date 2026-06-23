@@ -26,6 +26,11 @@
           interfaces:
             - name: default
               bridge: {}
+          # USB tablet provides absolute cursor positioning for VNC
+          inputs:
+            - name: tablet
+              type: tablet
+              bus: usb
         features:
           smm:
             enabled: true
@@ -79,6 +84,11 @@
           interfaces:
             - name: default
               bridge: {}
+          # USB tablet provides absolute cursor positioning for VNC
+          inputs:
+            - name: tablet
+              type: tablet
+              bus: usb
           tpm: {}
           rng: {}
         features:
