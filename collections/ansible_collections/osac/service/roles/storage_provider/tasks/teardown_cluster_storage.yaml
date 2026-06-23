@@ -1,12 +1,12 @@
 ---
-# Dispatches cleanup to each unique provider in the tier list.
-# Cleanup removes cluster-side K8s resources (StorageClasses, VolumeSnapshotClasses,
+# Dispatches teardown_cluster_storage to each unique provider in the tier list.
+# Removes cluster-side K8s resources (StorageClasses, VolumeSnapshotClasses,
 # CSI Secret) without touching backend resources or hub Secret.
 # Best-effort — ignore_errors so one provider's failure doesn't block others.
 
-- name: Dispatch cleanup to each provider
+- name: Dispatch teardown_cluster_storage to each provider
   block:
-    - name: Run cleanup per provider
+    - name: Run teardown_cluster_storage per provider
       ansible.builtin.include_tasks: _dispatch_provider.yaml
       loop: "{{ _unique_providers }}"
       loop_control:
