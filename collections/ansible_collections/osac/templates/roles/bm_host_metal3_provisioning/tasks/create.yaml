@@ -63,70 +63,22 @@
   when: not (already_provisioned | bool)
   block:
     - name: Build userData content
-      when: ssh_key | length > 0 or user_data_secret_ref | length > 0
+      when: user_data_secret_ref | length > 0
       block:
-        - name: Read userDataSecret from BareMetalInstance namespace
-          when: user_data_secret_ref | length > 0
-          block:
-            - name: Fetch userDataSecret
-              kubernetes.core.k8s_info:
-                api_version: v1
-                kind: Secret
-                namespace: "{{ bare_metal_instance.metadata.namespace }}"
-                name: "{{ user_data_secret_ref }}"
-              register: user_data_secret_result
+        - name: Fetch userDataSecret
+          kubernetes.core.k8s_info:
+            api_version: v1
+            kind: Secret
+            namespace: "{{ bare_metal_instance.metadata.namespace }}"
+            name: "{{ user_data_secret_ref }}"
+          register: user_data_secret_result
 
-            - name: Fail if userDataSecret not found
-              ansible.builtin.fail:
-                msg: >-
-                  Secret '{{ user_data_secret_ref }}' not found in namespace
-                  '{{ bare_metal_instance.metadata.namespace }}'
-              when: user_data_secret_result.resources | length == 0
-
-            - name: Extract user data content from Secret
-              ansible.builtin.set_fact:
-                existing_user_data: "{{ user_data_secret_result.resources[0].data.userdata | b64decode }}"
-
-        - name: Generate cloud-init with SSH key only
-          when:
-            - ssh_key | length > 0
-            - user_data_secret_ref | length == 0
-          ansible.builtin.set_fact:
-            final_user_data: |
-              #cloud-config
-              ssh_authorized_keys:
-                - {{ ssh_key }}
-
-        - name: Use existing user data as-is (no SSH key to merge)
-          when:
-            - ssh_key | length == 0
-            - user_data_secret_ref | length > 0
-          ansible.builtin.set_fact:
-            final_user_data: "{{ existing_user_data }}"
-
-        - name: Merge SSH key into existing cloud-init user data
-          when:
-            - ssh_key | length > 0
-            - user_data_secret_ref | length > 0
-          block:
-            - name: Fail if user data is not cloud-config format
-              ansible.builtin.fail:
-                msg: >-
-                  Cannot inject SSH key into user data that is not cloud-config format.
-                  User data must start with '#cloud-config' to support SSH key injection.
-                  Either remove the ssh_key parameter or provide user data in cloud-config
-                  format with ssh_authorized_keys included.
-              when: not (existing_user_data | trim is match('^#cloud-config'))
-
-            - name: Parse existing cloud-init and merge SSH key
-              ansible.builtin.set_fact:
-                final_user_data: >-
-                  #cloud-config
-                  {{ (existing_user_data | regex_replace('^#cloud-config\s*\n?', '') | from_yaml | default({}))
-                     | combine({'ssh_authorized_keys':
-                         ((existing_user_data | regex_replace('^#cloud-config\s*\n?', '') | from_yaml | default({})).ssh_authorized_keys | default([]))
-                         + [ssh_key]})
-                     | to_nice_yaml }}
+        - name: Fail if userDataSecret not found
+          ansible.builtin.fail:
+            msg: >-
+              Secret '{{ user_data_secret_ref }}' not found in namespace
+              '{{ bare_metal_instance.metadata.namespace }}'
+          when: user_data_secret_result.resources | length == 0
 
         - name: Create userData Secret in BMH namespace
           kubernetes.core.k8s:
@@ -137,8 +89,21 @@
               metadata:
                 name: "{{ bmh_name }}-user-data"
                 namespace: "{{ bmh_namespace }}"
-              stringData:
-                userData: "{{ final_user_data }}"
+              data:
+                userData: "{{ user_data_secret_result.resources[0].data.userdata }}"
+
+    - name: Create metaData Secret with SSH public key
+      when: ssh_key | length > 0
+      kubernetes.core.k8s:
+        state: present
+        definition:
+          apiVersion: v1
+          kind: Secret
+          metadata:
+            name: "{{ bmh_name }}-meta-data"
+            namespace: "{{ bmh_namespace }}"
+          stringData:
+            metaData: "{{ {'public_keys': {'osac': ssh_key}} | to_nice_yaml }}"
 
     - name: Create networkData Secret
       when: template_params.networkData | default('') | length > 0
@@ -177,13 +142,26 @@
              }, recursive=True) }}
 
     - name: Add userData to BMH patch
-      when: final_user_data is defined
+      when: user_data_secret_ref | length > 0
       ansible.builtin.set_fact:
         bmh_patch: >-
           {{ bmh_patch | combine({
                'spec': bmh_patch.spec | combine({
                  'userData': {
                    'name': bmh_name ~ '-user-data',
+                   'namespace': bmh_namespace
+                 }
+               })
+             }, recursive=True) }}
+
+    - name: Add metaData to BMH patch
+      when: ssh_key | length > 0
+      ansible.builtin.set_fact:
+        bmh_patch: >-
+          {{ bmh_patch | combine({
+               'spec': bmh_patch.spec | combine({
+                 'metaData': {
+                   'name': bmh_name ~ '-meta-data',
                    'namespace': bmh_namespace
                  }
                })
