@@ -310,7 +310,6 @@
         vast_username: ""
         vast_password: ""
         _vast_tenant_id: ""
-        _vast_tenant_uid: ""
         _vast_tenant_uid_hash: ""
         _vast_tenant_csi_username: ""
         _vast_tenant_csi_password: ""
