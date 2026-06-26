@@ -176,7 +176,6 @@
                   osac.openshift.io/tenant: "{{ tenant_name }}"
               type: Opaque
               stringData:
-                tenant_uid: "{{ tenant_uid }}"
                 tenant_uid_hash: "{{ (tenant_uid | hash('sha256'))[:8] }}"
                 vast_tenant_id: "{{ _vast_tenant_result.tenants.id | string }}"
                 vast_local_provider_id: "{{ _vast_local_provider_id | string }}"

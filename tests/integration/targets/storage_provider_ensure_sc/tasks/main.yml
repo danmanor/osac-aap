@@ -67,7 +67,6 @@
               osac.openshift.io/tenant: "test-ensuresc"
           type: Opaque
           stringData:
-            tenant_uid: "test-uid-12345"
             tenant_uid_hash: "d0f7f176"
             vast_tenant_id: "999"
             vast_local_provider_id: "1"
