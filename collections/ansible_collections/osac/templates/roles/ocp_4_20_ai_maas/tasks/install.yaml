@@ -1,0 +1,14 @@
+---
+# Entry point: creates an OpenShift cluster with RHOAI + MaaS.
+# Delegates cluster creation to ocp_4_17_small and overrides the
+# post-install hook to install operators and configure MaaS.
+
+- name: Create cluster with RHOAI + MaaS post-install
+  ansible.builtin.include_role:
+    name: osac.templates.ocp_4_17_small
+    tasks_from: install
+  vars:
+    ocp_release_image: "{{ ocp_4_20_ai_maas_ocp_release_image }}"
+    install_step_post_install_hook_override:
+      name: osac.templates.ocp_4_20_ai_maas
+      tasks_from: post_install.yaml

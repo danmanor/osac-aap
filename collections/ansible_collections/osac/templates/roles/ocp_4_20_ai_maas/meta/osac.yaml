@@ -1,0 +1,12 @@
+---
+title: OpenShift AI 4.20 Cluster with MaaS
+description: >
+  Builds an OpenShift 4.20 cluster with RHOAI 3.4, Models-as-a-Service (GA),
+  Keycloak SSO, and GPU support. Includes RHCL 1.3 version pinning for auth
+  enforcement compatibility with Service Mesh 3.2.
+template_type: cluster
+implementation_strategy: ocp_4_20_ai_maas
+default_node_request:
+  - resourceClass: dgx
+    numberOfNodes: 2
+allowed_resource_classes: []
