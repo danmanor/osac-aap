@@ -288,6 +288,8 @@ class Metadata(Base):
     allowed_resource_classes: list[str] | None = None
     # Network-specific fields
     implementation_strategy: str | None = None
+    fabric_manager: str | None = None
+    k8s_manager: str | None = None
     is_default: bool = False
     capabilities: NetworkClassCapabilities | None = None
     parameters: list[TemplateParameterDefinition] = pydantic.Field(default_factory=list)
@@ -376,6 +378,8 @@ class NetworkClassTemplate(Base):
     title: str
     description: str | None = None
     implementation_strategy: str
+    fabric_manager: str | None = None
+    k8s_manager: str | None = None
     is_default: bool = False
     capabilities: NetworkClassCapabilities
 
@@ -546,6 +550,9 @@ class Collection(Base):
                             title=metadata.title,
                             description=metadata.description,
                             implementation_strategy=metadata.implementation_strategy,
+                            fabric_manager=metadata.fabric_manager,
+                            k8s_manager=metadata.k8s_manager,
+                            is_default=metadata.is_default,
                             capabilities=metadata.capabilities or NetworkClassCapabilities(),
                         )
                     elif metadata.template_type == TemplateTypeEnum.storage_provider:
