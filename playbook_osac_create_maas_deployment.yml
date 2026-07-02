@@ -1,0 +1,72 @@
+---
+# Playbook: deploy MaaS on RHOAI 3.4 via ocp_4_20_ai_maas template role.
+# Runs the role's task files directly against a live cluster.
+#
+# Usage:
+#   ansible-playbook playbook_osac_create_maas_deployment.yml --tags all -v
+#   ansible-playbook playbook_osac_create_maas_deployment.yml --tags operators
+#   ansible-playbook playbook_osac_create_maas_deployment.yml --tags maas
+#   ansible-playbook playbook_osac_create_maas_deployment.yml --tags verify
+#   ansible-playbook playbook_osac_create_maas_deployment.yml --tags cleanup
+
+- name: Deploy MaaS on RHOAI 3.4
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    # Simulate admin_kubeconfig (normally set by ocp_4_17_small pipeline)
+    admin_kubeconfig: "{{ lookup('env', 'KUBECONFIG') | default('~/.kube/config', true) }}"
+
+  tasks:
+    # --- Install Operators (BOM Phase 2 + 3) ---
+    - name: Install platform operators
+      ansible.builtin.include_role:
+        name: osac.templates.ocp_4_20_ai_maas
+        tasks_from: install_operators.yaml
+        apply:
+          tags:
+            - operators
+            - all
+      tags:
+        - operators
+        - all
+
+    # --- Configure MaaS (Phases 1-5) ---
+    - name: Configure MaaS platform
+      ansible.builtin.include_role:
+        name: osac.templates.ocp_4_20_ai_maas
+        tasks_from: configure_maas.yaml
+        apply:
+          tags:
+            - maas
+            - all
+      tags:
+        - maas
+        - all
+
+    # --- Verification ---
+    - name: Run verification tests
+      ansible.builtin.include_role:
+        name: osac.templates.ocp_4_20_ai_maas
+        tasks_from: verify.yaml
+        apply:
+          tags:
+            - verify
+            - all
+      tags:
+        - verify
+        - all
+
+    # --- Cleanup ---
+    - name: Undeploy everything
+      ansible.builtin.include_role:
+        name: osac.templates.ocp_4_20_ai_maas
+        tasks_from: delete.yaml
+        apply:
+          tags:
+            - cleanup
+            - never
+      tags:
+        - cleanup
+        - never

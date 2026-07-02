@@ -6,5 +6,7 @@ metadata:
   namespace: osac-system
 spec:
   templateID: osac.templates.ocp_virt_vm
+  networkAttachments:
+    - subnetRef: test-subnet
 status:
   desiredConfigVersion: "1"

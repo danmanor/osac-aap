@@ -38,6 +38,7 @@ WORKFLOWS=(
 # Roles with multiple scenarios (due to set_fact persistence across plays)
 # list each scenario file separately in ROLE_SCENARIO_TESTS.
 ROLE_TESTS=(
+  "config_as_code_pod_specs"
   "finalizer"
   "lease"
 )

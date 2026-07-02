@@ -331,11 +331,11 @@ controller_templates: # noqa: var-naming[no-role-prefix]
   # provisioning races on VAST resources. This serializes all tenant operations
   # through a single AAP worker. Acceptable for current scale; for high-volume
   # tenant provisioning, consider per-tenant locking instead.
-  - name: "{{ aap_prefix }}-create-org"
+  - name: "{{ aap_prefix }}-create-tenant-storage-backend"
     project: "{{ aap_prefix }}"
     organization: "{{ aap_organization_name }}"
     job_type: run
-    playbook: "playbook_osac_configure_tenant_storage.yml"
+    playbook: "playbook_osac_create_tenant_storage_backend.yml"
     inventory: "{{ aap_prefix }}-storage-operations"
     execution_environment: "{{ aap_prefix }}-ee"
     instance_groups:
@@ -343,11 +343,35 @@ controller_templates: # noqa: var-naming[no-role-prefix]
     allow_simultaneous: false
     ask_variables_on_launch: true
     verbosity: 0
-  - name: "{{ aap_prefix }}-delete-org"
+  - name: "{{ aap_prefix }}-create-tenant-cluster-storage"
     project: "{{ aap_prefix }}"
     organization: "{{ aap_organization_name }}"
     job_type: run
-    playbook: "playbook_osac_delete_tenant_storage.yml"
+    playbook: "playbook_osac_create_tenant_cluster_storage.yml"
+    inventory: "{{ aap_prefix }}-storage-operations"
+    execution_environment: "{{ aap_prefix }}-ee"
+    instance_groups:
+      - "{{ aap_prefix }}-storage-operations-ig"
+    allow_simultaneous: false
+    ask_variables_on_launch: true
+    verbosity: 0
+  - name: "{{ aap_prefix }}-delete-tenant-cluster-storage"
+    project: "{{ aap_prefix }}"
+    organization: "{{ aap_organization_name }}"
+    job_type: run
+    playbook: "playbook_osac_delete_tenant_cluster_storage.yml"
+    inventory: "{{ aap_prefix }}-storage-operations"
+    execution_environment: "{{ aap_prefix }}-ee"
+    instance_groups:
+      - "{{ aap_prefix }}-storage-operations-ig"
+    allow_simultaneous: false
+    ask_variables_on_launch: true
+    verbosity: 0
+  - name: "{{ aap_prefix }}-delete-tenant-storage-backend"
+    project: "{{ aap_prefix }}"
+    organization: "{{ aap_organization_name }}"
+    job_type: run
+    playbook: "playbook_osac_delete_tenant_storage_backend.yml"
     inventory: "{{ aap_prefix }}-storage-operations"
     execution_environment: "{{ aap_prefix }}-ee"
     instance_groups:

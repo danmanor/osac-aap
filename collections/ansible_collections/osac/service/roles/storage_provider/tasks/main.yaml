@@ -96,8 +96,8 @@
   ansible.builtin.fail:
     msg: >-
       Invalid storage_provider_action '{{ storage_provider_action }}'. Must be one of:
-      setup, ensure_storage_class, teardown.
-  when: storage_provider_action not in ['setup', 'ensure_storage_class', 'teardown']
+      setup, ensure_storage_class, teardown_cluster_storage, teardown_backend.
+  when: storage_provider_action not in ['setup', 'ensure_storage_class', 'teardown_cluster_storage', 'teardown_backend']
 
 - name: Extract unique providers from tier list
   ansible.builtin.set_fact:

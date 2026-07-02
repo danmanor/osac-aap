@@ -25,7 +25,13 @@
                 bus: virtio
           interfaces:
             - name: default
-              masquerade: {}
+              binding:
+                name: l2bridge
+          # USB tablet provides absolute cursor positioning for VNC
+          inputs:
+            - name: tablet
+              type: tablet
+              bus: usb
         features:
           smm:
             enabled: true
@@ -76,7 +82,13 @@
                 bus: virtio
           interfaces:
             - name: default
-              masquerade: {}
+              binding:
+                name: l2bridge
+          # USB tablet provides absolute cursor positioning for VNC
+          inputs:
+            - name: tablet
+              type: tablet
+              bus: usb
           tpm: {}
           rng: {}
         features:

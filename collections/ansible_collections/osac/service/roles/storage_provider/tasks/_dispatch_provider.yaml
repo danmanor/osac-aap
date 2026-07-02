@@ -4,7 +4,7 @@
 #
 # Receives from caller (via loop_var or set_fact):
 #   _current_provider  — the provider name for this iteration (e.g. 'vast')
-#   _dispatch_action   — task file to invoke (setup, ensure_storage_class, teardown)
+#   _dispatch_action   — task file to invoke (setup, ensure_storage_class, teardown_cluster_storage, teardown_backend)
 #
 # Uses from play scope:
 #   storage_provider_tiers              — full tier list (filtered here per provider)

@@ -85,3 +85,25 @@
 - name: Merge security group labels into default VM labels
   ansible.builtin.set_fact:
     default_vm_labels: "{{ default_vm_labels | combine(vm_sg_labels) }}"
+
+- name: Extract primary subnet reference
+  ansible.builtin.set_fact:
+    vm_subnet_ref: >-
+      {{
+        (
+          compute_instance.spec.networkAttachments
+          | default([])
+          | first
+          | default({})
+        ).subnetRef
+        | default('')
+      }}
+
+- name: Require networkAttachments with subnetRef
+  ansible.builtin.assert:
+    that:
+      - vm_subnet_ref | length > 0
+    fail_msg: >-
+      ComputeInstance must have spec.networkAttachments[0].subnetRef set.
+      This identifies the subnet namespace where the VM will be created.
+      Ensure the ComputeInstance references a Subnet.

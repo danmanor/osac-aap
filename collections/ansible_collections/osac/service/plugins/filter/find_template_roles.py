@@ -265,6 +265,7 @@ class TemplateTypeEnum(StrEnum):
     compute_instance = "compute_instance"
     network = "network"
     storage_provider = "storage_provider"
+    bare_metal_instance = "bare_metal_instance"
 
 
 class NetworkClassCapabilities(Base):
@@ -287,6 +288,8 @@ class Metadata(Base):
     allowed_resource_classes: list[str] | None = None
     # Network-specific fields
     implementation_strategy: str | None = None
+    fabric_manager: str | None = None
+    k8s_manager: str | None = None
     is_default: bool = False
     capabilities: NetworkClassCapabilities | None = None
     parameters: list[TemplateParameterDefinition] = pydantic.Field(default_factory=list)
@@ -348,6 +351,16 @@ class ComputeInstanceTemplate(BaseTemplate):
     spec_defaults: ComputeInstanceTemplateSpecDefaults | None = None
 
 
+class BareMetalInstanceTemplate(BaseTemplate):
+    """Template for BareMetalInstance deployments"""
+
+    template_type: Literal[TemplateTypeEnum.bare_metal_instance] = pydantic.Field(
+        default=TemplateTypeEnum.bare_metal_instance, exclude=True
+    )
+    # BareMetalInstanceTemplate API does not support parameters field
+    parameters: list[TemplateParameter] = pydantic.Field(default_factory=list, exclude=True)
+
+
 class NetworkClassTemplate(Base):
     """Template for NetworkClass registration.
 
@@ -365,6 +378,8 @@ class NetworkClassTemplate(Base):
     title: str
     description: str | None = None
     implementation_strategy: str
+    fabric_manager: str | None = None
+    k8s_manager: str | None = None
     is_default: bool = False
     capabilities: NetworkClassCapabilities
 
@@ -535,6 +550,9 @@ class Collection(Base):
                             title=metadata.title,
                             description=metadata.description,
                             implementation_strategy=metadata.implementation_strategy,
+                            fabric_manager=metadata.fabric_manager,
+                            k8s_manager=metadata.k8s_manager,
+                            is_default=metadata.is_default,
                             capabilities=metadata.capabilities or NetworkClassCapabilities(),
                         )
                     elif metadata.template_type == TemplateTypeEnum.storage_provider:
@@ -544,8 +562,15 @@ class Collection(Base):
                             f"Skipping storage_provider role '{path.name}' in collection '{self.name}'"
                         )
                         continue
-                    else:
+                    elif metadata.template_type == TemplateTypeEnum.bare_metal_instance:
+                        yield BareMetalInstanceTemplate(**common)
+                    elif metadata.template_type == TemplateTypeEnum.compute_instance:
                         yield ComputeInstanceTemplate(**common, spec_defaults=metadata.spec_defaults)
+                    else:
+                        display.warning(
+                            f"Unknown template_type '{metadata.template_type}' for role '{path.name}' "
+                            f"in collection '{self.name}'"
+                        )
                 except Exception as e:
                     display.warning(
                         f"Failed to create template for role '{path.name}' in collection '{self.name}': {e}"
@@ -709,6 +734,7 @@ class FilterModule:
         return {
             "find_cluster_template_roles": find_template_roles_filter(TemplateTypeEnum.cluster),
             "find_compute_instance_template_roles": find_template_roles_filter(TemplateTypeEnum.compute_instance),
+            "find_bare_metal_instance_template_roles": find_template_roles_filter(TemplateTypeEnum.bare_metal_instance),
             "find_network_class_roles": find_network_class_roles_filter,
         }
 
@@ -716,15 +742,15 @@ class FilterModule:
 if __name__ == "__main__":
     import sys
 
-    # Usage: python find_template_roles.py --type cluster|compute_instance|network collection1 collection2 ...
+    # Usage: python find_template_roles.py --type cluster|compute_instance|bare_metal_instance|network collection1 collection2 ...
     if "--type" not in sys.argv:
         print("Error: --type parameter is required", file=sys.stderr)
-        print("Usage: python find_template_roles.py --type cluster|compute_instance|network collection1 collection2 ...", file=sys.stderr)
+        print("Usage: python find_template_roles.py --type cluster|compute_instance|bare_metal_instance|network collection1 collection2 ...", file=sys.stderr)
         sys.exit(1)
 
     type_idx = sys.argv.index("--type")
     if type_idx + 1 >= len(sys.argv):
-        print("Error: --type requires a value (cluster, compute_instance, or network)", file=sys.stderr)
+        print("Error: --type requires a value (cluster, compute_instance, bare_metal_instance, or network)", file=sys.stderr)
         sys.exit(1)
 
     template_type = sys.argv[type_idx + 1]
@@ -732,17 +758,19 @@ if __name__ == "__main__":
 
     if not collections:
         print("Error: At least one collection name is required", file=sys.stderr)
-        print("Usage: python find_template_roles.py --type cluster|compute_instance|network collection1 collection2 ...", file=sys.stderr)
+        print("Usage: python find_template_roles.py --type cluster|compute_instance|bare_metal_instance|network collection1 collection2 ...", file=sys.stderr)
         sys.exit(1)
 
     if template_type == TemplateTypeEnum.cluster:
         filter_func = find_template_roles_filter(TemplateTypeEnum.cluster)
     elif template_type == TemplateTypeEnum.compute_instance:
         filter_func = find_template_roles_filter(TemplateTypeEnum.compute_instance)
+    elif template_type == TemplateTypeEnum.bare_metal_instance:
+        filter_func = find_template_roles_filter(TemplateTypeEnum.bare_metal_instance)
     elif template_type == TemplateTypeEnum.network:
         filter_func = find_network_class_roles_filter
     else:
-        print(f"Error: Invalid template type '{template_type}'. Must be 'cluster', 'compute_instance', or 'network'", file=sys.stderr)
+        print(f"Error: Invalid template type '{template_type}'. Must be 'cluster', 'compute_instance', 'bare_metal_instance', or 'network'", file=sys.stderr)
         sys.exit(1)
 
     found = filter_func(collections)

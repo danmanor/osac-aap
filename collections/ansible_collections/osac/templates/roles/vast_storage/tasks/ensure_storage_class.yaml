@@ -125,18 +125,16 @@
       no_log: true
 
     # CSI Secret uses per-tenant Manager username/password — NEVER admin creds.
-    # The 'tenant' field is intentionally OMITTED. Including it causes the CSI
-    # driver to set X-Tenant-Name on the /api/v1/token/ login call, which
-    # tenant-scopes the JWT and blocks GET /api/v1/versions/ — a prerequisite
-    # check the driver makes before every storage operation. Tenant scoping is
-    # handled by the tenant_name StorageClass parameter and the role permissions.
+    # The 'tenant' field is REQUIRED — TENANT_ADMIN users must authenticate
+    # with X-Tenant-Name, and the CSI driver sets this header from the Secret's
+    # tenant field on /api/v1/token/ login calls.
     - name: Build CSI Secret data
       ansible.builtin.set_fact:
         _vast_csi_secret_data:
           username: "{{ _vast_tenant_csi_username }}"
           password: "{{ _vast_tenant_csi_password }}"
           endpoint: "{{ _vast_tenant_endpoint }}"
-          # tenant: "{{ tenant_name }}"
+          tenant: "{{ tenant_name }}"
       no_log: true
 
     - name: Add passphrase to CSI Secret data for block encryption
@@ -167,20 +165,28 @@
           name: "{{ _vast_csi_secret_name }}"
           namespace: "{{ tenant_namespace }}"
 
+    - name: Build VIP pool parameters for StorageClass
+      ansible.builtin.set_fact:
+        _vast_sc_vip_params: >-
+          {{ {'vip_pool_fqdn': _vast_tenant_vip_pool_fqdn, 'vip_pool_fqdn_random_prefix': 'false'}
+             if (_vast_tenant_vip_pool_fqdn | default('') | length > 0)
+             else {'vip_pool_name': _vast_tenant_vip_pool} }}
+
     - name: Build base StorageClass parameters (shared by NFS and block)
       ansible.builtin.set_fact:
-        _vast_sc_base_params:
-          vip_pool_name: "{{ _vast_tenant_vip_pool }}"
-          csi.storage.k8s.io/provisioner-secret-name: "{{ _vast_csi_secret_ref.name }}"
-          csi.storage.k8s.io/provisioner-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
-          csi.storage.k8s.io/controller-publish-secret-name: "{{ _vast_csi_secret_ref.name }}"
-          csi.storage.k8s.io/controller-publish-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
-          csi.storage.k8s.io/node-publish-secret-name: "{{ _vast_csi_secret_ref.name }}"
-          csi.storage.k8s.io/node-publish-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
-          csi.storage.k8s.io/controller-expand-secret-name: "{{ _vast_csi_secret_ref.name }}"
-          csi.storage.k8s.io/controller-expand-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
-          csi.storage.k8s.io/node-expand-secret-name: "{{ _vast_csi_secret_ref.name }}"
-          csi.storage.k8s.io/node-expand-secret-namespace: "{{ _vast_csi_secret_ref.namespace }}"
+        _vast_sc_base_params: >-
+          {{ _vast_sc_vip_params | combine({
+          'csi.storage.k8s.io/provisioner-secret-name': _vast_csi_secret_ref.name,
+          'csi.storage.k8s.io/provisioner-secret-namespace': _vast_csi_secret_ref.namespace,
+          'csi.storage.k8s.io/controller-publish-secret-name': _vast_csi_secret_ref.name,
+          'csi.storage.k8s.io/controller-publish-secret-namespace': _vast_csi_secret_ref.namespace,
+          'csi.storage.k8s.io/node-publish-secret-name': _vast_csi_secret_ref.name,
+          'csi.storage.k8s.io/node-publish-secret-namespace': _vast_csi_secret_ref.namespace,
+          'csi.storage.k8s.io/controller-expand-secret-name': _vast_csi_secret_ref.name,
+          'csi.storage.k8s.io/controller-expand-secret-namespace': _vast_csi_secret_ref.namespace,
+          'csi.storage.k8s.io/node-expand-secret-name': _vast_csi_secret_ref.name,
+          'csi.storage.k8s.io/node-expand-secret-namespace': _vast_csi_secret_ref.namespace
+          }) }}
 
     - name: Build block host encryption JSON when passphrase is available
       ansible.builtin.set_fact:
@@ -228,7 +234,7 @@
           provisioner: "{{ vast_storage_csi_provisioner_map[item.protocol] }}"
           parameters: >-
             {{ _vast_sc_base_params
-               | combine({'root_export': '/osac/' ~ tenant_name ~ '/' ~ item.name})
+               | combine({'root_export': '/osac-' ~ tenant_name ~ '-' ~ _vast_tenant_uid_hash ~ '/' ~ item.name})
                | combine({'view_policy': _vast_nfs_view_policy})
                | combine(({'qos_policy': item.qos_policy} if item.qos_policy is defined else {})) }}
           reclaimPolicy: Delete
@@ -254,12 +260,11 @@
           provisioner: "{{ vast_storage_csi_provisioner_map[item.protocol] }}"
           parameters: >-
             {{ _vast_sc_base_params
-               | combine({'subsystem': 'view-' ~ tenant_name ~ '-' ~ item.name,
+               | combine({'subsystem': 'view-' ~ tenant_name ~ '-' ~ _vast_tenant_uid_hash ~ '-' ~ item.name,
                           'tenant_name': tenant_name})
                | combine({'csi.storage.k8s.io/node-stage-secret-name': _vast_csi_secret_ref.name})
                | combine({'csi.storage.k8s.io/node-stage-secret-namespace': _vast_csi_secret_ref.namespace})
-               | combine(_vast_sc_block_encryption_params | default({}))
-               | combine(({'qos_policy': item.qos_policy} if item.qos_policy is defined else {})) }}
+               | combine(_vast_sc_block_encryption_params | default({})) }}
           reclaimPolicy: Delete
           volumeBindingMode: WaitForFirstConsumer
       loop: "{{ _vast_block_tiers }}"
@@ -310,10 +315,13 @@
         vast_username: ""
         vast_password: ""
         _vast_tenant_id: ""
+        _vast_tenant_uid_hash: ""
         _vast_tenant_csi_username: ""
         _vast_tenant_csi_password: ""
         _vast_tenant_endpoint: ""
         _vast_tenant_vip_pool: ""
+        _vast_tenant_vip_pool_fqdn: ""
+        _vast_sc_vip_params: {}
         _vast_tenant_config_secret: {}
         _vast_vms_conn: {}
         _vast_block_encryption_passphrase: ""

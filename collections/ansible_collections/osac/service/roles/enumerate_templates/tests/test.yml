@@ -107,9 +107,11 @@
           - item.title is defined
           - item.implementation_strategy is defined
           - item.implementation_strategy | length > 0
+          - item.fabric_manager is defined
+          - item.fabric_manager | length > 0
           - item.capabilities is defined
         fail_msg: "Network class '{{ item.id }}' missing required fields"
-        success_msg: "Network class '{{ item.id }}' has correct structure (strategy={{ item.implementation_strategy }})"
+        success_msg: "Network class '{{ item.id }}' has correct structure (strategy={{ item.implementation_strategy }}, fabric_manager={{ item.fabric_manager }})"
       loop: "{{ osac_network_classes }}"
       loop_control:
         label: "{{ item.id }}"
