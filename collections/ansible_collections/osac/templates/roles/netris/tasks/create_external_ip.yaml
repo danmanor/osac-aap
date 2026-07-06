@@ -1,0 +1,113 @@
+---
+# ExternalIP maps to a Netris IPAM /32 allocation
+# Finds an available IP from the pool's nat-purpose subnets, then reserves it
+# as a named /32 allocation in the IPAM tree.
+
+- name: Validate ExternalIP annotations
+  ansible.builtin.assert:
+    that:
+      - external_ip.metadata is defined
+      - external_ip.metadata.annotations is defined
+      - "'osac.openshift.io/externalippool-name' in external_ip.metadata.annotations"
+    fail_msg: "ExternalIP metadata.annotations['osac.openshift.io/externalippool-name'] is required"
+
+- name: Extract ExternalIP configuration
+  ansible.builtin.set_fact:
+    eip_name: "{{ external_ip.metadata.name }}"
+    eip_pool_name: >-
+      {{ external_ip.metadata.annotations['osac.openshift.io/externalippool-name'] }}
+
+- name: Display ExternalIP information
+  ansible.builtin.debug:
+    msg:
+      - "Allocating Netris IPAM IP for ExternalIP '{{ eip_name }}'"
+      - "Pool name (ExternalIPPool): {{ eip_pool_name }}"
+
+- name: Ensure Netris auth
+  ansible.builtin.include_role:
+    name: netris.controller.auth
+  when: netris_session_cookie is not defined
+
+- name: Check for existing IPAM allocation
+  ansible.builtin.uri:
+    url: >-
+      {{ netris_controller_url }}/api/v2/ipam
+    method: GET
+    headers:
+      Cookie: "connect.sid={{ netris_session_cookie }}"
+    return_content: true
+    status_code: [200]
+    timeout: "{{ netris_timeout | default(30) }}"
+    validate_certs: "{{ netris_validate_certs | default(true) }}"
+  register: _eip_ipam_tree_resp
+  no_log: true
+
+- name: Find existing allocation by ExternalIP name
+  ansible.builtin.set_fact:
+    _eip_existing_alloc: >-
+      {{ (_eip_ipam_tree_resp.json.data | default([]))
+         | selectattr('name', 'equalto', eip_name)
+         | list | first | default(none) }}
+  when: _eip_ipam_tree_resp.json is mapping
+
+- name: Use existing allocation address (idempotent)
+  when: _eip_existing_alloc is defined and _eip_existing_alloc is not none
+  block:
+    - name: Set allocated address from existing IPAM allocation
+      ansible.builtin.set_fact:
+        eip_allocated_address: "{{ _eip_existing_alloc.prefix | ansible.utils.ipaddr('address') }}"
+
+    - name: Display existing allocation
+      ansible.builtin.debug:
+        msg: "ExternalIP '{{ eip_name }}' already has IPAM allocation: {{ eip_allocated_address }}"
+
+- name: Allocate new IP from IPAM pool
+  when: _eip_existing_alloc is not defined or _eip_existing_alloc is none
+  block:
+    - name: Find available IP from nat-purpose IPAM subnets
+      ansible.builtin.include_role:
+        name: netris.controller.ipam
+      vars:
+        ipam_site_id: "{{ netris_site_id }}"
+        ipam_purpose: "{{ default_ipam_purpose_public }}"
+        ipam_count: 1
+
+    - name: Set allocated address from IPAM
+      ansible.builtin.set_fact:
+        eip_allocated_address: "{{ ipam_allocated_ips[0] }}"
+
+    - name: Display allocated IP
+      ansible.builtin.debug:
+        msg: "Allocated IP {{ eip_allocated_address }} for ExternalIP '{{ eip_name }}'"
+
+    - name: Create /32 IPAM allocation to reserve the IP
+      ansible.builtin.include_role:
+        name: netris.controller.ipam
+        tasks_from: create_allocation
+      vars:
+        ipam_name: "{{ eip_name }}"
+        ipam_cidr: "{{ eip_allocated_address }}/32"
+        ipam_tenant_id: "{{ netris_tenant_id }}"
+
+    - name: Display IPAM allocation result
+      ansible.builtin.debug:
+        msg: >-
+          IPAM allocation '{{ eip_name }}' created for {{ eip_allocated_address }}/32
+          (ID: {{ ipam_alloc_id | default('unknown') }})
+
+- name: Write allocated address to ExternalIP CR annotation
+  kubernetes.core.k8s_json_patch:
+    api_version: osac.openshift.io/v1alpha1
+    kind: ExternalIP
+    name: "{{ eip_name }}"
+    namespace: "{{ external_ip.metadata.namespace }}"
+    patch:
+      - op: add
+        path: /metadata/annotations/osac.openshift.io~1allocated-address
+        value: "{{ eip_allocated_address }}"
+
+- name: Display ExternalIP creation result
+  ansible.builtin.debug:
+    msg:
+      - "ExternalIP '{{ eip_name }}' allocated address: {{ eip_allocated_address }}"
+      - "IPAM allocation created and address written to CR annotation"
