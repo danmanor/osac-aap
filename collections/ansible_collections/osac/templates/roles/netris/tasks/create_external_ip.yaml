@@ -81,15 +81,15 @@
     - name: Build list of all usable IPs across pool CIDRs
       ansible.builtin.set_fact:
         _eip_all_ips: >-
-          {% set ips = [] %}
-          {% for alloc in _eip_pool_allocs %}
-          {%   set cidr = alloc.prefix %}
-          {%   set net = cidr | ansible.utils.ipaddr('network') %}
-          {%   set prefix_len = cidr | ansible.utils.ipaddr('prefix') | int %}
-          {%   for i in range(1, 2 ** (32 - prefix_len) - 1) %}
-          {%     set _ = ips.append(net | ansible.utils.ipmath(i)) %}
-          {%   endfor %}
-          {% endfor %}
+          {%- set ips = [] -%}
+          {%- for alloc in _eip_pool_allocs -%}
+          {%-   set cidr = alloc.prefix -%}
+          {%-   set net = cidr | ansible.utils.ipaddr('network') -%}
+          {%-   set prefix_len = cidr | ansible.utils.ipaddr('prefix') | int -%}
+          {%-   for i in range(1, 2 ** (32 - prefix_len) - 1) -%}
+          {%-     set _ = ips.append(net | ansible.utils.ipmath(i)) -%}
+          {%-   endfor -%}
+          {%- endfor -%}
           {{ ips }}
 
     - name: Collect already-allocated /32 subnets within pool ranges
