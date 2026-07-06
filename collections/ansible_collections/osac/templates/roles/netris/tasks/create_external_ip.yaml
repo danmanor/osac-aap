@@ -1,7 +1,7 @@
 ---
-# ExternalIP maps to a Netris IPAM /32 allocation
-# Finds an available IP from the pool's nat-purpose subnets, then reserves it
-# as a named /32 allocation in the IPAM tree.
+# ExternalIP maps to a Netris IPAM /32 subnet (purpose=nat) inside the
+# pool's allocation.  Finds an available IP by enumerating the pool
+# allocation's CIDR and subtracting existing child subnets.
 
 - name: Validate ExternalIP annotations
   ansible.builtin.assert:
@@ -28,10 +28,9 @@
     name: netris.controller.auth
   when: netris_session_cookie is not defined
 
-- name: Check for existing IPAM allocation
+- name: Query IPAM tree
   ansible.builtin.uri:
-    url: >-
-      {{ netris_controller_url }}/api/v2/ipam
+    url: "{{ netris_controller_url }}/api/v2/ipam"
     method: GET
     headers:
       Cookie: "connect.sid={{ netris_session_cookie }}"
@@ -42,58 +41,101 @@
   register: _eip_ipam_tree_resp
   no_log: true
 
-- name: Find existing allocation by ExternalIP name
+- name: Check for existing subnet by ExternalIP name
   ansible.builtin.set_fact:
-    _eip_existing_alloc: >-
+    _eip_existing_subnet: >-
       {{ (_eip_ipam_tree_resp.json.data | default([]))
          | selectattr('name', 'equalto', eip_name)
          | list | first | default(none) }}
   when: _eip_ipam_tree_resp.json is mapping
 
-- name: Use existing allocation address (idempotent)
-  when: _eip_existing_alloc is defined and _eip_existing_alloc is not none
+- name: Use existing subnet address (idempotent)
+  when: _eip_existing_subnet is defined and _eip_existing_subnet is not none
   block:
-    - name: Set allocated address from existing IPAM allocation
+    - name: Set allocated address from existing IPAM subnet
       ansible.builtin.set_fact:
-        eip_allocated_address: "{{ _eip_existing_alloc.prefix | ansible.utils.ipaddr('address') }}"
+        eip_allocated_address: "{{ _eip_existing_subnet.prefix | ansible.utils.ipaddr('address') }}"
 
-    - name: Display existing allocation
+    - name: Display existing subnet
       ansible.builtin.debug:
-        msg: "ExternalIP '{{ eip_name }}' already has IPAM allocation: {{ eip_allocated_address }}"
+        msg: "ExternalIP '{{ eip_name }}' already has IPAM subnet: {{ eip_allocated_address }}"
 
-- name: Allocate new IP from IPAM pool
-  when: _eip_existing_alloc is not defined or _eip_existing_alloc is none
+- name: Allocate new IP from pool
+  when: _eip_existing_subnet is not defined or _eip_existing_subnet is none
   block:
-    - name: Find available IP from nat-purpose IPAM subnets
-      ansible.builtin.include_role:
-        name: netris.controller.ipam
-      vars:
-        ipam_site_id: "{{ netris_site_id }}"
-        ipam_purpose: "{{ default_ipam_purpose_public }}"
-        ipam_count: 1
-
-    - name: Set allocated address from IPAM
+    - name: Find pool allocation in IPAM tree
       ansible.builtin.set_fact:
-        eip_allocated_address: "{{ ipam_allocated_ips[0] }}"
+        _eip_pool_alloc: >-
+          {{ (_eip_ipam_tree_resp.json.data | default([]))
+             | selectattr('name', 'equalto', eip_pool_name)
+             | list | first | default(none) }}
+      when: _eip_ipam_tree_resp.json is mapping
+
+    - name: Fail if pool allocation not found
+      ansible.builtin.fail:
+        msg: >-
+          ExternalIPPool allocation '{{ eip_pool_name }}' not found in Netris IPAM.
+          Ensure the ExternalIPPool has been created before allocating ExternalIPs.
+      when: _eip_pool_alloc is none
+
+    - name: Set pool CIDR
+      ansible.builtin.set_fact:
+        _eip_pool_cidr: "{{ _eip_pool_alloc.prefix }}"
+
+    - name: Enumerate all usable IPs in pool CIDR
+      ansible.builtin.set_fact:
+        _eip_all_ips: >-
+          {{ range(1, 2 ** (32 - (_eip_pool_cidr | ansible.utils.ipaddr('prefix') | int)) - 1)
+             | map('ansible.utils.ipmath', _eip_pool_cidr | ansible.utils.ipaddr('network'))
+             | list }}
+
+    - name: Collect existing child subnets in pool
+      ansible.builtin.set_fact:
+        _eip_allocated_ips: >-
+          {{ (_eip_ipam_tree_resp.json.data | default([]))
+             | selectattr('prefix', 'defined')
+             | selectattr('prefix', 'match', '.*\/32$')
+             | map(attribute='prefix')
+             | map('ansible.utils.ipaddr', 'address')
+             | select('in', _eip_all_ips)
+             | list }}
+
+    - name: Compute available IPs
+      ansible.builtin.set_fact:
+        _eip_available_ips: >-
+          {{ _eip_all_ips | reject('in', _eip_allocated_ips) | list }}
+
+    - name: Fail if no IPs available in pool
+      ansible.builtin.fail:
+        msg: >-
+          No available IPs in ExternalIPPool '{{ eip_pool_name }}' ({{ _eip_pool_cidr }}).
+          {{ _eip_allocated_ips | length }} of {{ _eip_all_ips | length }} IPs allocated.
+      when: _eip_available_ips | length == 0
+
+    - name: Set allocated address
+      ansible.builtin.set_fact:
+        eip_allocated_address: "{{ _eip_available_ips[0] }}"
 
     - name: Display allocated IP
       ansible.builtin.debug:
-        msg: "Allocated IP {{ eip_allocated_address }} for ExternalIP '{{ eip_name }}'"
+        msg: "Allocated IP {{ eip_allocated_address }} for ExternalIP '{{ eip_name }}' from pool '{{ eip_pool_name }}'"
 
-    - name: Create /32 IPAM allocation to reserve the IP
+    - name: Create /32 IPAM subnet to reserve the IP
       ansible.builtin.include_role:
         name: netris.controller.ipam
-        tasks_from: create_allocation
+        tasks_from: create_subnet
       vars:
         ipam_name: "{{ eip_name }}"
         ipam_cidr: "{{ eip_allocated_address }}/32"
+        ipam_purpose: "nat"
+        ipam_site_id: "{{ netris_site_id }}"
         ipam_tenant_id: "{{ netris_tenant_id }}"
 
-    - name: Display IPAM allocation result
+    - name: Display IPAM subnet result
       ansible.builtin.debug:
         msg: >-
-          IPAM allocation '{{ eip_name }}' created for {{ eip_allocated_address }}/32
-          (ID: {{ ipam_alloc_id | default('unknown') }})
+          IPAM subnet '{{ eip_name }}' created for {{ eip_allocated_address }}/32
+          (ID: {{ ipam_subnet_id | default('unknown') }})
 
 - name: Write allocated address to ExternalIP CR annotation
   kubernetes.core.k8s_json_patch:
@@ -110,4 +152,4 @@
   ansible.builtin.debug:
     msg:
       - "ExternalIP '{{ eip_name }}' allocated address: {{ eip_allocated_address }}"
-      - "IPAM allocation created and address written to CR annotation"
+      - "IPAM subnet created and address written to CR annotation"
