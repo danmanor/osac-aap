@@ -28,7 +28,7 @@
     name: netris.controller.auth
   when: netris_session_cookie is not defined
 
-- name: Query IPAM tree
+- name: Query IPAM allocations
   ansible.builtin.uri:
     url: "{{ netris_controller_url }}/api/v2/ipam"
     method: GET
@@ -41,13 +41,26 @@
   register: _eip_ipam_tree_resp
   no_log: true
 
+- name: Query IPAM subnets
+  ansible.builtin.uri:
+    url: "{{ netris_controller_url }}/api/v2/ipam/subnets"
+    method: GET
+    headers:
+      Cookie: "connect.sid={{ netris_session_cookie }}"
+    return_content: true
+    status_code: [200]
+    timeout: "{{ netris_timeout | default(30) }}"
+    validate_certs: "{{ netris_validate_certs | default(true) }}"
+  register: _eip_ipam_subnets_resp
+  no_log: true
+
 - name: Check for existing subnet by ExternalIP name
   ansible.builtin.set_fact:
     _eip_existing_subnet: >-
-      {{ (_eip_ipam_tree_resp.json.data | default([]))
+      {{ (_eip_ipam_subnets_resp.json.data | default([]))
          | selectattr('name', 'equalto', eip_name)
          | list | first | default(none) }}
-  when: _eip_ipam_tree_resp.json is mapping
+  when: _eip_ipam_subnets_resp.json is mapping
 
 - name: Use existing subnet address (idempotent)
   when: _eip_existing_subnet is defined and _eip_existing_subnet is not none
@@ -95,7 +108,7 @@
     - name: Collect already-allocated /32 subnets within pool ranges
       ansible.builtin.set_fact:
         _eip_allocated_ips: >-
-          {{ (_eip_ipam_tree_resp.json.data | default([]))
+          {{ (_eip_ipam_subnets_resp.json.data | default([]))
              | selectattr('prefix', 'defined')
              | selectattr('prefix', 'match', '.*\/32$')
              | map(attribute='prefix')
