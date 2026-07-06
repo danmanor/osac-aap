@@ -1,0 +1,9 @@
+{
+  "repo": "osac-project/osac-aap",
+  "origin": "danmanor/osac-aap",
+  "branch": "feat/OSAC-2035-netris-external-ip",
+  "base": "main",
+  "pr_number": 396,
+  "pr_url": "https://github.com/osac-project/osac-aap/pull/396",
+  "jira_key": "OSAC-2035"
+}

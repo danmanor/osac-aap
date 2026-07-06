@@ -113,3 +113,22 @@ argument_specs:
         type: dict
         required: true
         description: ExternalIP CR from fulfillment-api via EDA payload
+
+  create_external_ip_attachment:
+    options:
+      external_ip_attachment:
+        type: dict
+        required: true
+        description: ExternalIPAttachment CR from fulfillment-api via EDA payload
+      template_parameters:
+        type: dict
+        description: Template-specific parameters (reserved for future use)
+        options: {}
+        default: {}
+
+  delete_external_ip_attachment:
+    options:
+      external_ip_attachment:
+        type: dict
+        required: true
+        description: ExternalIPAttachment CR from fulfillment-api via EDA payload
