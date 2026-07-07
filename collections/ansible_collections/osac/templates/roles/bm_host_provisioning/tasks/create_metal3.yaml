@@ -1,13 +1,4 @@
 ---
-- name: Fail if host class is not metal3
-  ansible.builtin.fail:
-    msg: "bm_host_metal3_provisioning requires hostClass 'metal3', got '{{ bare_metal_instance.spec.hostClass | default('') }}'"
-  when: bare_metal_instance.spec.hostClass | default('') != "metal3"
-
-- name: Parse template parameters
-  ansible.builtin.set_fact:
-    template_params: "{{ bare_metal_instance.spec.templateParameters | from_json }}"
-
 - name: Apply image defaults to template parameters
   ansible.builtin.set_fact:
     template_params: "{{ {'imageURL': bm_host_metal3_default_image_url,
