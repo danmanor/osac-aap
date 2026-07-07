@@ -31,6 +31,14 @@ configAsCode:
 
 importAgents:
   servers: []
+  # servers:
+  #   - name: "server-01"
+  #     bmc_url: "redfish-virtualmedia+https://192.168.1.1:8000/redfish/v1/Systems/1"
+  #     bmc_username: "admin"
+  #     bmc_password: "password"
+  #     boot_mac: "00:8f:09:3e:24:af"
+  #     netris_server_name: "server-01"
+  #     resource_class: "x86_64"
 
 importBcmAgents:
   cert: ""
