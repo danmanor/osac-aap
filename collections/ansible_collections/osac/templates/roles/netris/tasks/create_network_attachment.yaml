@@ -8,7 +8,6 @@
     na_host_name: "{{ network_attachment.host_name }}"
     na_logical_interface: "{{ network_attachment.logical_interface_name }}"
     na_subnet_ref: "{{ network_attachment.subnet_ref }}"
-    na_primary: "{{ network_attachment.primary | default(false) }}"
 
 - name: Look up Subnet CR by UUID label
   kubernetes.core.k8s_info:
@@ -35,7 +34,6 @@
       - "Creating Netris network attachment for host '{{ na_host_name }}'"
       - "Logical interface: {{ na_logical_interface }}"
       - "Subnet: {{ na_subnet_name }} (UUID: {{ na_subnet_ref }})"
-      - "Primary: {{ na_primary }}"
 
 - name: Ensure Netris auth
   ansible.builtin.include_role:
@@ -304,8 +302,5 @@
 # NOTE: Host-side network configuration (static IP, default gateway, routes)
 # is NOT performed by the fabric manager role. It is the responsibility of the
 # BMaaS/CaaS provisioning template to configure the OS networking using the
-# allocated IP from network_attachment_ip and the primary flag. The fabric
-# manager only handles switch-side config (V-Net port attachment) and IPAM
-# allocation. The provisioning template can use the mac_address to resolve
-# the OS interface name and apply networking via cloud-init, kickstart,
-# ignition, NMState, or whatever the target OS supports.
+# allocated IP from network_attachment_ip. The fabric manager only handles
+# switch-side config (V-Net port attachment) and IPAM allocation.
