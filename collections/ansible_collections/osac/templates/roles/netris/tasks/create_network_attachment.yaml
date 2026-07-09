@@ -5,7 +5,7 @@
 
 - name: Extract network attachment configuration
   ansible.builtin.set_fact:
-    na_host_id: "{{ network_attachment.host_id }}"
+    na_host_name: "{{ network_attachment.host_name }}"
     na_logical_interface: "{{ network_attachment.logical_interface_name }}"
     na_mac_address: "{{ network_attachment.mac_address }}"
     na_subnet_ref: "{{ network_attachment.subnet_ref }}"
@@ -33,7 +33,7 @@
 - name: Display network attachment information
   ansible.builtin.debug:
     msg:
-      - "Creating Netris network attachment for host '{{ na_host_id }}'"
+      - "Creating Netris network attachment for host '{{ na_host_name }}'"
       - "Logical interface: {{ na_logical_interface }} (MAC: {{ na_mac_address }})"
       - "Subnet: {{ na_subnet_name }} (UUID: {{ na_subnet_ref }})"
       - "Primary: {{ na_primary }}"
@@ -88,14 +88,14 @@
   ansible.builtin.set_fact:
     _target_server: >-
       {{ (_server_list_resp.json.data | default([]))
-         | selectattr('name', 'equalto', na_host_id)
+         | selectattr('name', 'equalto', na_host_name)
          | list | first | default(none) }}
   when: _server_list_resp.json is mapping
 
 - name: Fail if server not found
   ansible.builtin.fail:
     msg: >-
-      Server '{{ na_host_id }}' not found in Netris inventory.
+      Server '{{ na_host_name }}' not found in Netris inventory.
       Ensure the bare-metal host is registered in Netris before creating a network attachment.
   when: _target_server is not defined or _target_server is none
 
@@ -127,7 +127,7 @@
 - name: Fail if port not found
   ansible.builtin.fail:
     msg: >-
-      Port '{{ na_logical_interface }}' not found on server '{{ na_host_id }}'.
+      Port '{{ na_logical_interface }}' not found on server '{{ na_host_name }}'.
       Available ports: {{ (_ports_resp.json.data | default([]))
                           | map(attribute='ifName')
                           | list }}.
@@ -172,7 +172,7 @@
 - name: Display network attachment result
   ansible.builtin.debug:
     msg: >-
-      Network attachment for host '{{ na_host_id }}' interface '{{ na_logical_interface }}'
+      Network attachment for host '{{ na_host_name }}' interface '{{ na_logical_interface }}'
       on V-Net '{{ na_subnet_name }}'
       {{ (_port_already_on_vnet | bool) | ternary('already exists', 'created successfully') }}
       (port ID: {{ _target_port.id }}, V-Net ID: {{ _target_vnet.id }})
@@ -282,7 +282,7 @@
         type: vnet
       meta:
         tag: "osac-bm-host"
-        host_id: "{{ na_host_id }}"
+        host_name: "{{ na_host_name }}"
         interface: "{{ na_logical_interface }}"
     return_content: true
     status_code: [200, 201]
@@ -298,7 +298,7 @@
 - name: Display IP allocation result
   ansible.builtin.debug:
     msg: >-
-      Allocated IP '{{ _allocated_ip }}/{{ _vnet_prefix }}' for host '{{ na_host_id }}'
+      Allocated IP '{{ _allocated_ip }}/{{ _vnet_prefix }}' for host '{{ na_host_name }}'
       on subnet '{{ na_subnet_name }}'
       (reservation ID: {{ _reservation_resp.json.data.id | default('unknown') }})
 
@@ -311,7 +311,7 @@
 - name: Fail if server has no management IP
   ansible.builtin.fail:
     msg: >-
-      Server '{{ na_host_id }}' has no management IP address in Netris inventory.
+      Server '{{ na_host_name }}' has no management IP address in Netris inventory.
       Cannot apply NMState configuration without SSH access.
   when: _server_mgmt_ip | length == 0
 
@@ -334,7 +334,7 @@
 - name: Fail if OS interface not found for MAC
   ansible.builtin.fail:
     msg: >-
-      No OS interface found with MAC address '{{ na_mac_address }}' on host '{{ na_host_id }}'.
+      No OS interface found with MAC address '{{ na_mac_address }}' on host '{{ na_host_name }}'.
       Verify the MAC address matches a physical NIC on the server.
   when: _os_interface_name | length == 0
 
@@ -342,7 +342,7 @@
   ansible.builtin.debug:
     msg: >-
       Resolved MAC '{{ na_mac_address }}' to OS interface '{{ _os_interface_name }}'
-      on host '{{ na_host_id }}'
+      on host '{{ na_host_name }}'
 
 - name: Render NMState config for BM host
   ansible.builtin.set_fact:
@@ -360,7 +360,7 @@
 - name: Write NMState config to temp file
   ansible.builtin.copy:
     content: "{{ _nmstate_rendered_config }}"
-    dest: "/tmp/nmstate-{{ na_host_id }}-{{ na_logical_interface }}.yaml"
+    dest: "/tmp/nmstate-{{ na_host_name }}-{{ na_logical_interface }}.yaml"
     mode: "0644"
 
 - name: Disable rp_filter on BM host
@@ -380,7 +380,7 @@
       scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 \
         -o 'ProxyCommand=ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ConnectTimeout=30 -i {{ server_ssh_bastion_key }} -W %h:%p {{ server_ssh_bastion_user }}@{{ server_ssh_bastion_host }}' \
         -i {{ server_ssh_key }} \
-        /tmp/nmstate-{{ na_host_id }}-{{ na_logical_interface }}.yaml \
+        /tmp/nmstate-{{ na_host_name }}-{{ na_logical_interface }}.yaml \
         {{ server_ssh_user | default('core') }}@{{ _server_mgmt_ip }}:/tmp/nmstate-config.yaml
   changed_when: true
   no_log: true
@@ -398,12 +398,12 @@
 
 - name: Clean up local temp file
   ansible.builtin.file:
-    path: "/tmp/nmstate-{{ na_host_id }}-{{ na_logical_interface }}.yaml"
+    path: "/tmp/nmstate-{{ na_host_name }}-{{ na_logical_interface }}.yaml"
     state: absent
 
 - name: Display NMState apply result
   ansible.builtin.debug:
     msg: >-
-      NMState config applied on host '{{ na_host_id }}' —
+      NMState config applied on host '{{ na_host_name }}' —
       interface '{{ na_logical_interface }}' configured with IP '{{ _allocated_ip }}/{{ _vnet_prefix }}'
       {{ (na_primary | bool) | ternary('(primary — default gateway via ' + _vnet_gateway_ip + ')', '(secondary — no default gateway)') }}

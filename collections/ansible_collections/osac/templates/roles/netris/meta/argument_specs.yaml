@@ -139,7 +139,7 @@ argument_specs:
         type: dict
         required: true
         description: >-
-          Network attachment parameters from dispatcher. Contains host_id
+          Network attachment parameters from dispatcher. Contains host_name
           (Netris server name), logical_interface_name (Netris port name),
           mac_address (NIC MAC for OS interface resolution), subnet_ref
           (OSAC Subnet UUID), and primary flag.
@@ -155,6 +155,6 @@ argument_specs:
         type: dict
         required: true
         description: >-
-          Network attachment parameters from dispatcher. Contains host_id
+          Network attachment parameters from dispatcher. Contains host_name
           (Netris server name), logical_interface_name (Netris port name),
           and subnet_ref (OSAC Subnet UUID).

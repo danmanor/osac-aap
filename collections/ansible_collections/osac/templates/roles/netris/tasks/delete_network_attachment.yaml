@@ -3,7 +3,7 @@
 
 - name: Extract network attachment configuration
   ansible.builtin.set_fact:
-    na_host_id: "{{ network_attachment.host_id }}"
+    na_host_name: "{{ network_attachment.host_name }}"
     na_logical_interface: "{{ network_attachment.logical_interface_name }}"
     na_subnet_ref: "{{ network_attachment.subnet_ref }}"
 
@@ -28,7 +28,7 @@
 - name: Display network attachment deletion info
   ansible.builtin.debug:
     msg:
-      - "Deleting Netris network attachment for host '{{ na_host_id }}'"
+      - "Deleting Netris network attachment for host '{{ na_host_name }}'"
       - "Interface: {{ na_logical_interface }}"
       - "Subnet: {{ na_subnet_name }} (UUID: {{ na_subnet_ref }})"
 
@@ -82,7 +82,7 @@
   ansible.builtin.set_fact:
     _target_server: >-
       {{ (_server_list_resp.json.data | default([]))
-         | selectattr('name', 'equalto', na_host_id)
+         | selectattr('name', 'equalto', na_host_name)
          | list | first | default(none) }}
   when:
     - _target_vnet is defined and _target_vnet is not none
@@ -91,7 +91,7 @@
 - name: Skip deletion if server not found
   ansible.builtin.debug:
     msg: >-
-      Server '{{ na_host_id }}' not found in Netris inventory — nothing to delete.
+      Server '{{ na_host_name }}' not found in Netris inventory — nothing to delete.
   when:
     - _target_vnet is defined and _target_vnet is not none
     - (_target_server is not defined or _target_server is none)
@@ -152,8 +152,8 @@
          | selectattr('consumer.id', 'equalto', _target_vnet.id)
          | selectattr('meta.tag', 'defined')
          | selectattr('meta.tag', 'equalto', 'osac-bm-host')
-         | selectattr('meta.host_id', 'defined')
-         | selectattr('meta.host_id', 'equalto', na_host_id)
+         | selectattr('meta.host_name', 'defined')
+         | selectattr('meta.host_name', 'equalto', na_host_name)
          | selectattr('meta.interface', 'defined')
          | selectattr('meta.interface', 'equalto', na_logical_interface)
          | list | first | default(none) }}
@@ -180,8 +180,8 @@
     msg: >-
       {{ (_host_reservation is defined and _host_reservation is not none)
          | ternary(
-             "Released IP reservation '" + (_host_reservation.host.address | default('unknown')) + "' for host '" + na_host_id + "'",
-             "No IP reservation found for host '" + na_host_id + "' interface '" + na_logical_interface + "' — skipping"
+             "Released IP reservation '" + (_host_reservation.host.address | default('unknown')) + "' for host '" + na_host_name + "'",
+             "No IP reservation found for host '" + na_host_name + "' interface '" + na_logical_interface + "' — skipping"
            ) }}
   when:
     - _target_vnet is defined and _target_vnet is not none
@@ -221,5 +221,5 @@
 - name: Display deletion result
   ansible.builtin.debug:
     msg: >-
-      Network attachment deletion for host '{{ na_host_id }}' interface '{{ na_logical_interface }}'
+      Network attachment deletion for host '{{ na_host_name }}' interface '{{ na_logical_interface }}'
       on V-Net '{{ na_subnet_name }}' completed
