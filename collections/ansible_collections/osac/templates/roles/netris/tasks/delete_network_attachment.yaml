@@ -127,6 +127,67 @@
     - _target_vnet is defined and _target_vnet is not none
     - _target_server is defined and _target_server is not none
 
+# --- Release IP reservation ---
+
+- name: Get existing IP reservations
+  ansible.builtin.uri:
+    url: "{{ netris_controller_url }}/api/v2/reservation/ip"
+    method: GET
+    headers:
+      Cookie: "connect.sid={{ netris_session_cookie }}"
+    return_content: true
+    status_code: 200
+    timeout: "{{ netris_timeout | default(30) }}"
+    validate_certs: "{{ netris_validate_certs | default(true) }}"
+  register: _reservations_resp
+  when:
+    - _target_vnet is defined and _target_vnet is not none
+  no_log: true
+
+- name: Find IP reservation for this host and interface
+  ansible.builtin.set_fact:
+    _host_reservation: >-
+      {{ (_reservations_resp.json.data | default([]))
+         | selectattr('consumer.type', 'equalto', 'vnet')
+         | selectattr('consumer.id', 'equalto', _target_vnet.id)
+         | selectattr('meta.tag', 'defined')
+         | selectattr('meta.tag', 'equalto', 'osac-bm-host')
+         | selectattr('meta.host_id', 'defined')
+         | selectattr('meta.host_id', 'equalto', na_host_id)
+         | selectattr('meta.interface', 'defined')
+         | selectattr('meta.interface', 'equalto', na_interface)
+         | list | first | default(none) }}
+  when:
+    - _target_vnet is defined and _target_vnet is not none
+    - _reservations_resp is defined and _reservations_resp is not skipped
+
+- name: Delete IP reservation
+  ansible.builtin.uri:
+    url: "{{ netris_controller_url }}/api/v2/reservation/ip/{{ _host_reservation.id }}"
+    method: DELETE
+    headers:
+      Cookie: "connect.sid={{ netris_session_cookie }}"
+    return_content: true
+    status_code: [200, 204]
+    timeout: "{{ netris_timeout | default(30) }}"
+    validate_certs: "{{ netris_validate_certs | default(true) }}"
+  when:
+    - _host_reservation is defined and _host_reservation is not none
+  no_log: true
+
+- name: Display IP reservation release result
+  ansible.builtin.debug:
+    msg: >-
+      {{ (_host_reservation is defined and _host_reservation is not none)
+         | ternary(
+             "Released IP reservation '" + (_host_reservation.host.address | default('unknown')) + "' for host '" + na_host_id + "'",
+             "No IP reservation found for host '" + na_host_id + "' interface '" + na_interface + "' — skipping"
+           ) }}
+  when:
+    - _target_vnet is defined and _target_vnet is not none
+
+# --- Remove port from V-Net ---
+
 - name: Build updated ports list without the target port
   ansible.builtin.set_fact:
     _updated_ports: >-
