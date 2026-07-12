@@ -52,9 +52,9 @@
   register: _vnet_list_resp
   no_log: true
 
-- name: Find V-Net by subnet name
+- name: Find V-Net ID by subnet name
   ansible.builtin.set_fact:
-    _target_vnet: >-
+    _target_vnet_summary: >-
       {{ (_vnet_list_resp.json.data | default([]))
          | selectattr('name', 'equalto', na_subnet_name)
          | list | first | default(none) }}
@@ -64,7 +64,26 @@
   ansible.builtin.debug:
     msg: >-
       V-Net '{{ na_subnet_name }}' not found in Netris controller — nothing to delete.
-  when: _target_vnet is not defined or _target_vnet is none
+  when: _target_vnet_summary is not defined or _target_vnet_summary is none
+
+- name: Fetch target V-Net details (includes ports)
+  ansible.builtin.uri:
+    url: "{{ netris_controller_url }}/api/v2/vnet/{{ _target_vnet_summary.id }}"
+    method: GET
+    headers:
+      Cookie: "connect.sid={{ netris_session_cookie }}"
+    return_content: true
+    status_code: 200
+    timeout: "{{ netris_timeout | default(30) }}"
+    validate_certs: "{{ netris_validate_certs | default(true) }}"
+  register: _target_vnet_resp
+  when: _target_vnet_summary is defined and _target_vnet_summary is not none
+  no_log: true
+
+- name: Set target V-Net with full port data
+  ansible.builtin.set_fact:
+    _target_vnet: "{{ _target_vnet_resp.json.data }}"
+  when: _target_vnet_summary is defined and _target_vnet_summary is not none
 
 - name: Get Netris inventory servers
   ansible.builtin.uri:
@@ -168,9 +187,9 @@
     - na_parking_vnet_name | length > 0
     - _target_port is defined and _target_port is not none
   block:
-    - name: Find parking V-Net by name
+    - name: Find parking V-Net ID by name
       ansible.builtin.set_fact:
-        _parking_vnet: >-
+        _parking_vnet_summary: >-
           {{ (_vnet_list_resp.json.data | default([]))
              | selectattr('name', 'equalto', na_parking_vnet_name)
              | list | first | default(none) }}
@@ -179,7 +198,24 @@
       ansible.builtin.fail:
         msg: >-
           Parking V-Net '{{ na_parking_vnet_name }}' not found in Netris controller.
-      when: _parking_vnet is none
+      when: _parking_vnet_summary is none
+
+    - name: Fetch parking V-Net details (includes ports)
+      ansible.builtin.uri:
+        url: "{{ netris_controller_url }}/api/v2/vnet/{{ _parking_vnet_summary.id }}"
+        method: GET
+        headers:
+          Cookie: "connect.sid={{ netris_session_cookie }}"
+        return_content: true
+        status_code: 200
+        timeout: "{{ netris_timeout | default(30) }}"
+        validate_certs: "{{ netris_validate_certs | default(true) }}"
+      register: _parking_vnet_resp
+      no_log: true
+
+    - name: Set parking V-Net with full port data
+      ansible.builtin.set_fact:
+        _parking_vnet: "{{ _parking_vnet_resp.json.data }}"
 
     - name: Check if port is already on parking V-Net
       ansible.builtin.set_fact:
