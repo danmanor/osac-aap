@@ -98,7 +98,7 @@
   register: _server_list_resp
   no_log: true
 
-- name: Find server by host_id
+- name: Find server by host_name
   ansible.builtin.set_fact:
     _target_server: >-
       {{ (_server_list_resp.json.data | default([]))
@@ -150,6 +150,9 @@
   ansible.builtin.set_fact:
     _current_vnet: ~
 
+# Netris has no port-level endpoint to query which V-Net owns a port.
+# We must fetch details for every V-Net with ports to find the current owner.
+# Filtered to portsCount > 0 to bound the fan-out.
 - name: Collect V-Net IDs that have ports attached
   ansible.builtin.set_fact:
     _vnets_with_ports: >-
@@ -188,6 +191,9 @@
     label: "{{ item.json.data.name | default(item.item) }}"
   no_log: true
 
+# Between remove-from-previous and add-to-target, the port is temporarily
+# detached from any V-Net. If the playbook fails between the two PUTs,
+# re-running recovers correctly (create is idempotent).
 - name: Remove port from existing V-Net before attaching to target
   when:
     - _current_vnet is defined
@@ -209,6 +215,8 @@
              | rejectattr('id', 'equalto', _target_port.id)
              | list }}
 
+    # Netris V-Net PUT currently accepts partial bodies (PATCH semantics),
+    # but this is undocumented — send the full object to be safe.
     - name: Remove port from previous V-Net
       ansible.builtin.uri:
         url: "{{ netris_controller_url }}/api/v2/vnet/{{ _current_vnet.id }}"
@@ -217,8 +225,7 @@
           Cookie: "connect.sid={{ netris_session_cookie }}"
           Content-Type: "application/json"
         body_format: json
-        body:
-          ports: "{{ _prev_vnet_ports }}"
+        body: "{{ _current_vnet | combine({'ports': _prev_vnet_ports}) }}"
         return_content: true
         status_code: [200, 201]
         timeout: "{{ netris_timeout | default(30) }}"
@@ -252,8 +259,7 @@
       Cookie: "connect.sid={{ netris_session_cookie }}"
       Content-Type: "application/json"
     body_format: json
-    body:
-      ports: "{{ _updated_ports }}"
+    body: "{{ _target_vnet | combine({'ports': _updated_ports}) }}"
     return_content: true
     status_code: [200, 201]
     timeout: "{{ netris_timeout | default(30) }}"

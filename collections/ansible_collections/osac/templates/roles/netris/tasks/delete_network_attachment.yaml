@@ -99,7 +99,7 @@
   when: _target_vnet is defined and _target_vnet is not none
   no_log: true
 
-- name: Find server by host_id
+- name: Find server by host_name
   ansible.builtin.set_fact:
     _target_server: >-
       {{ (_server_list_resp.json.data | default([]))
@@ -152,6 +152,15 @@
     - _target_vnet is defined and _target_vnet is not none
     - _target_server is defined and _target_server is not none
 
+- name: Skip deletion if port not found
+  ansible.builtin.debug:
+    msg: >-
+      Port '{{ na_logical_interface }}' not found on server '{{ na_host_name }}' — nothing to delete.
+  when:
+    - _target_vnet is defined and _target_vnet is not none
+    - _target_server is defined and _target_server is not none
+    - (_target_port is not defined or _target_port is none)
+
 - name: Build updated ports list without the target port
   ansible.builtin.set_fact:
     _updated_ports: >-
@@ -170,8 +179,7 @@
       Cookie: "connect.sid={{ netris_session_cookie }}"
       Content-Type: "application/json"
     body_format: json
-    body:
-      ports: "{{ _updated_ports }}"
+    body: "{{ _target_vnet | combine({'ports': _updated_ports}) }}"
     return_content: true
     status_code: [200, 201]
     timeout: "{{ netris_timeout | default(30) }}"
@@ -239,8 +247,7 @@
           Cookie: "connect.sid={{ netris_session_cookie }}"
           Content-Type: "application/json"
         body_format: json
-        body:
-          ports: "{{ _parking_ports }}"
+        body: "{{ _parking_vnet | combine({'ports': _parking_ports}) }}"
         return_content: true
         status_code: [200, 201]
         timeout: "{{ netris_timeout | default(30) }}"
@@ -258,6 +265,8 @@
   ansible.builtin.debug:
     msg: >-
       Network attachment deletion for host '{{ na_host_name }}' interface '{{ na_logical_interface }}'
-      on V-Net '{{ na_subnet_name }}' completed
+      on V-Net '{{ na_subnet_name }}'
+      {{ (_target_port is defined and _target_port is not none)
+         | ternary('completed', 'skipped (nothing to remove)') }}
       {{ (na_parking_vnet_name | length > 0)
          | ternary('(returned to parking: ' ~ na_parking_vnet_name ~ ')', '(left detached)') }}
